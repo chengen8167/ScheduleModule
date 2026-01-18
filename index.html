@@ -3,58 +3,49 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>班表換班模擬器 - 專業版</title>
+    <title>班表模擬器 - 智能分組版</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
         :root { --primary: #007AFF; --danger: #ff4d4f; --safe: #2e7d32; --bg: #f0f2f5; }
-        body { font-family: -apple-system, "PingFang TC", sans-serif; margin: 0; background: var(--bg); color: #333; font-size: 14px; }
-        
-        /* 頂部配置區 */
-        .config-box { background: #fff; padding: 15px; border-bottom: 1px solid #ddd; position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+        body { font-family: -apple-system, sans-serif; margin: 0; background: var(--bg); font-size: 14px; }
+        .config-box { background: #fff; padding: 15px; border-bottom: 1px solid #ddd; position: sticky; top: 0; z-index: 100; }
         .input-group { display: flex; flex-wrap: wrap; gap: 10px; max-width: 1200px; margin: 0 auto; align-items: center; }
-        .file-input-wrapper { background: #f8f9fa; padding: 8px; border-radius: 6px; border: 1px dashed #ccc; font-size: 12px; flex: 1; min-width: 180px; }
+        .file-input-wrapper { background: #f8f9fa; padding: 8px; border-radius: 6px; border: 1px dashed #ccc; font-size: 12px; flex: 1; }
+        input[type="text"] { padding: 8px; border: 1px solid #ccc; border-radius: 6px; width: 90px; font-weight: bold; text-align: center; }
         
-        /* 控制按鈕區 */
         .controls { display: flex; gap: 8px; margin-top: 10px; }
-        button { background: var(--primary); color: white; border: none; padding: 8px 16px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px; }
+        button { background: var(--primary); color: white; border: none; padding: 8px 16px; border-radius: 6px; font-weight: bold; cursor: pointer; }
         button.secondary { background: #6c757d; }
 
         #calendar-container { max-width: 1200px; margin: 15px auto; padding: 0 10px; }
         
-        /* --- 核心佈局控制 --- */
-        
-        /* 電腦版 (Table Mode) */
-        .mode-table table { width: 100%; border-collapse: collapse; background: white; table-layout: fixed; }
-        .mode-table th, .mode-table td { border: 1px solid #eee; padding: 8px; vertical-align: top; }
-        .mode-table td { height: 180px; }
-        .mode-table .date-num { font-size: 1.2em; font-weight: bold; }
+        /* 佈局控制 */
+        #calendarArea table { width: 100%; border-collapse: collapse; background: white; table-layout: fixed; }
+        #calendarArea th, #calendarArea td { border: 1px solid #eee; padding: 8px; vertical-align: top; }
+        #calendarArea td { height: 180px; }
 
-        /* 手機版 (List Mode) */
-        .mode-list table, .mode-list thead, .mode-list tbody, .mode-list tr, .mode-list th, .mode-list td { display: block; width: 100%; }
-        .mode-list thead { display: none; }
-        .mode-list td { height: auto; margin-bottom: 12px; border-radius: 12px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); border: 1px solid #eee; background: white; box-sizing: border-box; }
-        .mode-list td.empty { display: none; }
-        .mode-list .date-num { font-size: 1.5em; color: var(--primary); }
-
-        /* 自動響應 (預設) */
+        /* 手機模式切換 */
         @media (max-width: 768px) {
-            #calendarArea:not(.force-table) table, 
-            #calendarArea:not(.force-table) thead, 
-            #calendarArea:not(.force-table) tbody, 
-            #calendarArea:not(.force-table) tr, 
-            #calendarArea:not(.force-table) td { display: block; width: 100%; }
+            #calendarArea:not(.force-table) table, #calendarArea:not(.force-table) tr, #calendarArea:not(.force-table) td { display: block; width: 100%; }
             #calendarArea:not(.force-table) thead { display: none; }
-            #calendarArea:not(.force-table) td { height: auto; margin-bottom: 12px; border-radius: 12px; background: white; border: 1px solid #eee; box-sizing: border-box; }
-            #calendarArea:not(.force-table) td.empty { display: none; }
+            #calendarArea:not(.force-table) td { height: auto; margin-bottom: 12px; border-radius: 12px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
         }
+        .force-table table { display: table !important; }
+        .force-table tr { display: table-row !important; }
+        .force-table td { display: table-cell !important; height: 180px !important; }
 
-        /* 共用元件樣式 */
+        /* 元件樣式 */
         .conflict-cell { border: 2px solid var(--danger) !important; background: #fff1f0 !important; }
         .date-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; }
         .orig-tag { font-size: 10px; color: #888; background: #eee; padding: 2px 4px; border-radius: 4px; }
+        
+        /* 下拉選單樣式 */
         .shift-select { width: 100%; padding: 10px; border: 2px solid #d0e7ff; background: #e7f3ff; color: #1877f2; border-radius: 8px; font-weight: bold; font-size: 16px; margin: 5px 0; }
+        optgroup { font-style: normal; color: #333; background: #fff; }
+
         .warning-tag { color: var(--danger); font-size: 11px; font-weight: bold; display: block; margin-top: 2px; }
-        .person-card { padding: 4px 6px; border-radius: 4px; margin-bottom: 4px; font-size: 12px; border-left: 3px solid #ccc; display: flex; justify-content: space-between; }
+        .person-card { padding: 4px 6px; border-radius: 4px; margin-bottom: 4px; font-size: 11px; border-left: 3px solid #ccc; display: flex; justify-content: space-between; }
+        .shift-name { color: #666; font-weight: normal; margin-left: 4px; }
         .can-swap { border-left-color: var(--safe); background: #f6ffed; }
         .cannot-swap { border-left-color: var(--danger); background: #fff1f0; }
     </style>
@@ -64,15 +55,15 @@
 <div class="config-box">
     <div class="input-group">
         <div class="file-input-wrapper">
-            載入檔案: <input type="file" id="uploadAll" accept=".xlsx, .xls, .html">
+            Excel/HTML: <input type="file" id="uploadAll" accept=".xlsx, .xls, .html">
         </div>
         <input type="text" id="empId" value="A022994">
-        <button onclick="run()">分析</button>
+        <button onclick="run()">執行分析</button>
     </div>
     <div class="controls">
-        <button class="secondary" onclick="setMode('auto')">🌓 自動切換</button>
-        <button class="secondary" onclick="setMode('table')">💻 電腦模式</button>
-        <button class="secondary" onclick="setMode('list')">📱 手機模式</button>
+        <button class="secondary" onclick="setMode('auto')">🌓 自動</button>
+        <button class="secondary" onclick="setMode('table')">💻 電腦</button>
+        <button class="secondary" onclick="setMode('list')">📱 手機</button>
     </div>
 </div>
 
@@ -82,14 +73,27 @@
 </div>
 
 <script>
-    // 數據庫與邏輯 (保留先前邏輯)
-    const SHIFT_DB = { "E159G": ["05:15","14:45"], "E159J": ["05:15","15:00"], "E15XA": ["05:15","15:15"], "F00XA": ["06:00","16:00"], "F308A": ["06:30","14:30"], "F309G": ["06:30","16:00"], "F30XA": ["06:30","16:30"], "G008A": ["07:00","15:00"], "G009A": ["07:00","16:00"], "G158A": ["07:15","15:15"], "G308A": ["07:30","15:30"], "J00XA": ["10:00","20:00"], "J308A": ["10:30","18:30"], "K008A": ["11:00","19:00"], "L008A": ["12:00","20:00"], "N008A": ["14:00","22:00"], "N009A": ["14:00","23:00"], "N009G": ["14:00","23:30"], "N308A": ["14:30","22:30"], "N309A": ["14:30","23:30"], "N30XA": ["14:30","00:30"], "O008A": ["15:00","23:00"], "O308A": ["15:30","23:30"], "O309A": ["15:30","00:30"], "O309G": ["15:30","00:45"], "O30XA": ["15:30","01:30"], "TRN": ["08:30","17:30"] };
+    const SHIFT_DB = { 
+        "E159G": ["05:15","14:45"], "E159J": ["05:15","15:00"], "E15XA": ["05:15","15:15"], 
+        "F00XA": ["06:00","16:00"], "F308A": ["06:30","14:30"], "F309G": ["06:30","16:00"], "F30XA": ["06:30","16:30"], 
+        "G008A": ["07:00","15:00"], "G009A": ["07:00","16:00"], "G158A": ["07:15","15:15"], "G308A": ["07:30","15:30"], 
+        "J00XA": ["10:00","20:00"], "J308A": ["10:30","18:30"], "K008A": ["11:00","19:00"], "L008A": ["12:00","20:00"], 
+        "N008A": ["14:00","22:00"], "N009A": ["14:00","23:00"], "N009G": ["14:00","23:30"], "N308A": ["14:30","22:30"], 
+        "N309A": ["14:30","23:30"], "N30XA": ["14:30","00:30"], "O008A": ["15:00","23:00"], "O308A": ["15:30","23:30"], 
+        "O309A": ["15:30","00:30"], "O309G": ["15:30","00:45"], "O30XA": ["15:30","01:30"], "TRN": ["08:30","17:30"] 
+    };
     const OFF_LIST = ['AL', 'D1', 'D2', 'D2A', 'D3', 'D3X', 'LEV', '休', ''];
     let state = { master: {}, personal: {}, orig: {}, sim: {}, year: 2026, month: 0, userName: "", targetId: "A022994" };
 
     function getTime(s) { if (!s) return null; const key = s.toUpperCase().split('/')[0]; return SHIFT_DB[key] || null; }
     function isOff(s) { return !s || OFF_LIST.includes(s.toUpperCase()) || !getTime(s); }
-    function getRest(pre, nxt) { const p = getTime(pre), n = getTime(nxt); if (!p || !n) return 24; const [pH, pM] = p[1].split(':').map(Number); const [nH, nM] = n[0].split(':').map(Number); return ((nH + 24) * 60 + nM - (pH * 60 + pM)) / 60; }
+    function getRest(pre, nxt) { 
+        const p = getTime(pre), n = getTime(nxt); 
+        if (!p || !n) return 24; 
+        const [pH, pM] = p[1].split(':').map(Number); 
+        const [nH, nM] = n[0].split(':').map(Number); 
+        return ((nH + 24) * 60 + nM - (pH * 60 + pM)) / 60; 
+    }
 
     function checkLegality(schedule, d) {
         const rPre = getRest(schedule[d-1], schedule[d]);
@@ -100,13 +104,11 @@
         return { restErr: rPre < 11 || rNxt < 11, streakErr: streak > 6, rVal: Math.min(rPre, rNxt), sVal: streak };
     }
 
-    // 切換模式函數
     function setMode(mode) {
         const area = document.getElementById('calendarArea');
-        area.className = ''; // 清除所有模式
-        if (mode === 'table') area.classList.add('mode-table', 'force-table');
+        area.className = '';
+        if (mode === 'table') area.classList.add('force-table');
         else if (mode === 'list') area.classList.add('mode-list');
-        // 'auto' 則不加任何 class，回歸 CSS 預設媒體查詢
     }
 
     document.getElementById('uploadAll').onchange = function(e) {
@@ -142,7 +144,7 @@
             if (!id || !name) return;
             state.personal[name] = { id: id };
             for(let d=1; d<=31; d++) {
-                const s = (getShift(r, d) || "").trim();
+                let s = (getShift(r, d) || "").trim();
                 state.personal[name][d] = s;
                 if(s && isNaN(s)) {
                     if(!state.master[d]) state.master[d] = {};
@@ -174,7 +176,7 @@
                 <div class="date-header"><span class="date-num">${d}</span><span class="orig-tag">原:${state.orig[d]||'休'}</span></div>
                 <select class="shift-select" onchange="state.sim[${d}]=this.value; render();">
                     <option value="">(休)</option>
-                    ${state.master[d] ? Object.keys(state.master[d]).sort().map(s => `<option value="${s}" ${s===state.sim[d]?'selected':''}>${s}</option>`).join('') : ''}
+                    ${renderGroupedOptions(d)}
                 </select>
                 ${res.restErr ? `<span class="warning-tag">⚠️ 休息不足 (${res.rVal.toFixed(1)}h)</span>` : ''}
                 ${res.streakErr ? `<span class="warning-tag">⚠️ 連上班 ${res.sVal} 天</span>` : ''}
@@ -184,14 +186,40 @@
         document.getElementById('calendarArea').innerHTML = html + `</tr></tbody></table>`;
     }
 
+    // --- 核心優化：分組下拉選單 ---
+    function renderGroupedOptions(day) {
+        if (!state.master[day]) return "";
+        const shifts = Object.keys(state.master[day]).sort();
+        const groups = {};
+        
+        shifts.forEach(s => {
+            const prefix = s.charAt(0).toUpperCase();
+            if (!groups[prefix]) groups[prefix] = [];
+            groups[prefix].push(s);
+        });
+
+        return Object.keys(groups).sort().map(prefix => {
+            return `<optgroup label="${prefix} 系列">
+                ${groups[prefix].map(s => `<option value="${s}" ${s === state.sim[day] ? 'selected' : ''}>${s}</option>`).join('')}
+            </optgroup>`;
+        }).join('');
+    }
+
+    // --- 核心優化：人名附加實際班別 ---
     function getSwapList(d, s) {
         if(isOff(s) || !state.master[d][s]) return "";
-        return state.master[d][s].map(other => {
-            if(other === state.userName) return "";
-            let oSched = {...state.personal[other]}; oSched[d] = state.orig[d];
+        return state.master[d][s].map(otherName => {
+            if(otherName === state.userName) return "";
+            const otherActualShift = state.personal[otherName][d]; // 取得對方當天原本的實際班別
+            let oSched = {...state.personal[otherName]}; 
+            oSched[d] = state.orig[d]; // 模擬對方換上我原本的班
             const res = checkLegality(oSched, d);
+            
             return `<div class="person-card ${!res.restErr && !res.streakErr ? 'can-swap' : 'cannot-swap'}">
-                <span>${!res.restErr && !res.streakErr ? '✅' : '❌'} ${other}</span>
+                <span>
+                    ${!res.restErr && !res.streakErr ? '✅' : '❌'} ${otherName}
+                    <span class="shift-name">(${otherActualShift})</span>
+                </span>
             </div>`;
         }).join('');
     }
