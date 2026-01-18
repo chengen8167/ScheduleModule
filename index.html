@@ -3,67 +3,172 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>班表模擬器 - 極簡選單版</title>
+    <title>班表模擬器 - 手機優化版</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
         :root { --primary: #007AFF; --danger: #ff4d4f; --safe: #2e7d32; --bg: #f0f2f5; }
-        body { font-family: -apple-system, sans-serif; margin: 0; background: var(--bg); font-size: 14px; }
-        .config-box { background: #fff; padding: 15px; border-bottom: 1px solid #ddd; position: sticky; top: 0; z-index: 100; }
-        .input-group { display: flex; flex-wrap: wrap; gap: 8px; max-width: 1200px; margin: 0 auto; align-items: center; }
-        .file-input-wrapper { background: #f8f9fa; padding: 6px; border-radius: 6px; border: 1px dashed #ccc; font-size: 12px; flex: 1; }
-        input[type="text"] { padding: 8px; border: 1px solid #ccc; border-radius: 6px; width: 85px; font-weight: bold; text-align: center; }
         
-        .controls { display: flex; gap: 5px; margin-top: 8px; }
-        button { background: var(--primary); color: white; border: none; padding: 6px 12px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 12px; }
-        button.secondary { background: #6c757d; }
+        * { box-sizing: border-box; } /* 防止寬度被內邊距撐破的關鍵 */
 
-        #calendar-container { max-width: 1200px; margin: 10px auto; padding: 0 10px; }
-        
-        /* 佈局 */
-        #calendarArea table { width: 100%; border-collapse: collapse; background: white; table-layout: fixed; }
-        #calendarArea td { border: 1px solid #eee; padding: 8px; vertical-align: top; height: 160px; }
-
-        @media (max-width: 768px) {
-            #calendarArea:not(.force-table) table, #calendarArea:not(.force-table) tr, #calendarArea:not(.force-table) td { display: block; width: 100%; }
-            #calendarArea:not(.force-table) thead { display: none; }
-            #calendarArea:not(.force-table) td { height: auto; margin-bottom: 10px; border-radius: 12px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        body { 
+            font-family: -apple-system, sans-serif; 
+            margin: 0; 
+            background: var(--bg); 
+            font-size: 14px;
+            width: 100%;
+            overflow-x: hidden; /* 禁止左右晃動 */
         }
 
-        /* 下拉選單：精簡字母版 */
-        .shift-select { width: 100%; padding: 10px; border: 2px solid #007AFF; background: #fff; color: #007AFF; border-radius: 8px; font-weight: bold; font-size: 18px; margin: 5px 0; text-align: center; }
+        /* 頂部配置區優化 */
+        .config-box { 
+            background: #fff; 
+            padding: 10px; 
+            border-bottom: 1px solid #ddd; 
+            position: sticky; 
+            top: 0; 
+            z-index: 100;
+        }
+        
+        .input-group { 
+            display: flex; 
+            flex-direction: column; /* 手機優先：垂直排列 */
+            gap: 8px; 
+            max-width: 100%;
+        }
+
+        .row-group {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            width: 100%;
+        }
+
+        .file-input-wrapper { 
+            background: #f8f9fa; 
+            padding: 8px; 
+            border-radius: 6px; 
+            border: 1px dashed #ccc; 
+            font-size: 12px;
+            flex: 1;
+        }
+
+        input[type="text"] { 
+            padding: 8px; 
+            border: 1px solid #ccc; 
+            border-radius: 6px; 
+            width: 80px; 
+            font-weight: bold;
+        }
+
+        .controls { 
+            display: grid;
+            grid-template-columns: repeat(3, 1fr); /* 三按鈕平均分配 */
+            gap: 5px;
+            width: 100%;
+        }
+
+        button { 
+            background: var(--primary); 
+            color: white; 
+            border: none; 
+            padding: 8px 5px; 
+            border-radius: 6px; 
+            font-weight: bold; 
+            font-size: 12px;
+            white-space: nowrap;
+        }
+        
+        button.secondary { background: #6c757d; }
+
+        /* 月曆容器 */
+        #calendar-container { 
+            width: 100%;
+            padding: 10px;
+        }
+        
+        /* 表格與列表切換邏輯 */
+        table { width: 100%; border-collapse: collapse; }
+
+        /* 預設手機版：轉為卡片 */
+        @media (max-width: 768px) {
+            #calendarArea:not(.force-table) table, 
+            #calendarArea:not(.force-table) tr, 
+            #calendarArea:not(.force-table) td { 
+                display: block; 
+                width: 100%; 
+            }
+            #calendarArea:not(.force-table) thead { display: none; }
+            #calendarArea:not(.force-table) td { 
+                background: white;
+                margin-bottom: 15px; 
+                border-radius: 12px; 
+                box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+                border: 1px solid #eee;
+                padding: 15px;
+                height: auto !important;
+            }
+        }
+
+        /* 電腦版模式強制修正 */
+        .force-table { overflow-x: auto; display: block; }
+        .force-table table { min-width: 800px; background: white; }
+        .force-table td { height: 160px; border: 1px solid #eee; vertical-align: top; padding: 5px; }
+
+        /* 下拉選單 */
+        .shift-select { 
+            width: 100%; 
+            padding: 12px; 
+            border: 2px solid var(--primary); 
+            background: #fff; 
+            color: var(--primary); 
+            border-radius: 8px; 
+            font-weight: bold; 
+            font-size: 16px; /* 防止 iOS 自動縮放 */
+            margin: 10px 0;
+        }
 
         .date-header { display: flex; justify-content: space-between; align-items: center; }
-        .orig-tag { font-size: 10px; color: #888; }
+        .date-num { font-size: 1.4em; font-weight: 800; color: #333; }
+        .orig-tag { font-size: 11px; color: #999; }
         
-        /* 名單顯示：細分名字與具體班表 */
-        .names-list { margin-top: 5px; border-top: 1px solid #f0f0f0; }
-        .person-card { padding: 5px; border-radius: 6px; margin-bottom: 4px; font-size: 12px; border-left: 4px solid #ccc; display: flex; flex-direction: column; }
+        /* 名單卡片 */
+        .names-list { margin-top: 10px; border-top: 1px solid #f0f0f0; padding-top: 5px; }
+        .person-card { 
+            padding: 8px; 
+            border-radius: 8px; 
+            margin-bottom: 6px; 
+            border-left: 5px solid #ccc;
+        }
         .card-row { display: flex; justify-content: space-between; align-items: center; }
-        .name-txt { font-weight: bold; }
-        .actual-shift-txt { font-size: 10px; color: #666; background: #e8e8e8; padding: 1px 4px; border-radius: 3px; }
+        .name-txt { font-weight: bold; font-size: 13px; }
+        .actual-shift-txt { font-size: 10px; color: #666; background: #eee; padding: 2px 5px; border-radius: 4px; }
         
         .can-swap { border-left-color: var(--safe); background: #f6ffed; }
         .cannot-swap { border-left-color: var(--danger); background: #fff1f0; }
-        .warning-tag { color: var(--danger); font-size: 10px; font-weight: bold; margin-top: 2px; }
+        .warning-tag { color: var(--danger); font-size: 10px; font-weight: bold; margin-top: 3px; display: block; }
     </style>
 </head>
 <body>
 
 <div class="config-box">
     <div class="input-group">
-        <div class="file-input-wrapper">資料: <input type="file" id="uploadAll" accept=".xlsx, .xls, .html"></div>
-        <input type="text" id="empId" value="A022994">
-        <button onclick="run()">分析</button>
-    </div>
-    <div class="controls">
-        <button class="secondary" onclick="setMode('auto')">🌓 自動</button>
-        <button class="secondary" onclick="setMode('table')">💻 電腦</button>
-        <button class="secondary" onclick="setMode('list')">📱 手機</button>
+        <div class="row-group">
+            <div class="file-input-wrapper">
+                <input type="file" id="uploadAll" accept=".xlsx, .xls, .html" style="width: 100%;">
+            </div>
+            <input type="text" id="empId" value="A022994">
+            <button onclick="run()" style="padding: 8px 15px;">分析</button>
+        </div>
+        <div class="controls">
+            <button class="secondary" onclick="setMode('auto')">🌓 自動</button>
+            <button class="secondary" onclick="setMode('table')">💻 電腦</button>
+            <button class="secondary" onclick="setMode('list')">📱 手機</button>
+        </div>
     </div>
 </div>
 
 <div id="calendar-container">
-    <div id="displayUser" style="margin-bottom:8px; font-weight:bold; color:var(--primary);"></div>
+    <div id="displayUser" style="margin: 5px 0 10px 5px; font-weight: bold; color: var(--primary);"></div>
     <div id="calendarArea"></div>
 </div>
 
@@ -114,7 +219,8 @@
             reader.readAsText(file);
         } else {
             reader.onload = (ev) => {
-                const rows = XLSX.utils.sheet_to_json(XLSX.read(new Uint8Array(ev.target.result), {type:'array'}).Sheets[Object.keys(XLSX.read(new Uint8Array(ev.target.result), {type:'array'}).Sheets)[0]], {header:1, defval:""});
+                const sheet = XLSX.read(new Uint8Array(ev.target.result), {type:'array'}).Sheets;
+                const rows = XLSX.utils.sheet_to_json(sheet[Object.keys(sheet)[0]], {header:1, defval:""});
                 const ym = String(rows[4][0]).match(/\d+/g); state.year = ym[0]; state.month = ym[1]-1;
                 let dCols = {}; rows[5].forEach((c, i) => { if(!isNaN(parseInt(c))) dCols[parseInt(c)] = i; });
                 processRows(rows, (r) => r[2], (r, d) => r[dCols[d]], (r) => String(r[3]).trim().toUpperCase());
@@ -161,17 +267,16 @@
         for(let i=0; i<startDay; i++) html += `<td class="empty"></td>`;
         for(let d=1; d<=last; d++) {
             if((startDay+d-1)%7===0 && d!==1) html += `</tr><tr>`;
-            // 這裡的模擬排班需要一個基準值，我們取原班
             let schedule = {...state.orig};
             const res = checkLegality(schedule, d);
             
             html += `<td>
-                <div class="date-header"><b>${d}</b><span class="orig-tag">原:${state.orig[d]||'休'}</span></div>
+                <div class="date-header"><span class="date-num">${d}</span><span class="orig-tag">原:${state.orig[d]||'休'}</span></div>
                 <select class="shift-select" onchange="state.simPrefix[${d}]=this.value; render();">
                     <option value="">休</option>
                     ${renderPrefixOptions(d)}
                 </select>
-                ${res.restErr ? `<span class="warning-tag">⚠️ 休息不足</span>` : ''}
+                ${res.restErr ? `<span class="warning-tag">⚠️ 你休息不足</span>` : ''}
                 <div class="names-list">${getGroupedSwapList(d, state.simPrefix[d])}</div>
             </td>`;
         }
@@ -180,28 +285,23 @@
 
     function renderPrefixOptions(day) {
         if (!state.master[day]) return "";
-        const prefixes = Object.keys(state.master[day]).sort();
-        return prefixes.map(p => `<option value="${p}" ${p === state.simPrefix[day] ? 'selected' : ''}>${p} 班</option>`).join('');
+        return Object.keys(state.master[day]).sort().map(p => `<option value="${p}" ${p === state.simPrefix[day] ? 'selected' : ''}>${p} 班</option>`).join('');
     }
 
     function getGroupedSwapList(day, prefix) {
         if(!prefix || !state.master[day] || !state.master[day][prefix]) return "";
-        
         return state.master[day][prefix].map(item => {
             if(item.name === state.userName) return "";
-            
-            // 關鍵：用對方的「實際班表」來模擬
             let oSched = {...state.personal[item.name]};
-            oSched[day] = state.orig[day]; // 換成我的原班
+            oSched[day] = state.orig[day];
             const res = checkLegality(oSched, day);
-            
             return `<div class="person-card ${!res.restErr && !res.streakErr ? 'can-swap' : 'cannot-swap'}">
                 <div class="card-row">
                     <span class="name-txt">${!res.restErr && !res.streakErr ? '✅' : '❌'} ${item.name}</span>
                     <span class="actual-shift-txt">${item.actual}</span>
                 </div>
-                ${res.restErr ? `<span class="warning-tag">他休息不足</span>` : ''}
-                ${res.streakErr ? `<span class="warning-tag">他會連${res.sVal}天</span>` : ''}
+                ${res.restErr ? `<span class="warning-tag">⚠️ 對方休息不足</span>` : ''}
+                ${res.streakErr ? `<span class="warning-tag">⚠️ 對方連上班${res.sVal}天</span>` : ''}
             </div>`;
         }).join('');
     }
