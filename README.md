@@ -1,1 +1,1 @@
-# THSR_ScheduleModule
+# ScheduleModule
