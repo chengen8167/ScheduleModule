@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>班表模擬器 - 智能收合版</title>
+    <title>班表模擬器 - 目標導向決策版</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
         :root { --primary: #007AFF; --danger: #ff4d4f; --safe: #2e7d32; --bg: #f0f2f5; --selected: #fff9c4; }
@@ -40,17 +40,15 @@
         
         .shift-select { width: 100%; padding: 10px; border: 2px solid var(--primary); background: #fff; border-radius: 8px; font-weight: bold; font-size: 18px; margin: 8px 0; }
 
-        /* 摺疊按鈕樣式 */
-        .collapse-btn { 
-            width: 100%; background: #eee; color: #555; border: none; padding: 6px; 
-            border-radius: 6px; font-size: 11px; margin-bottom: 5px; 
-            display: flex; justify-content: space-between; align-items: center;
-        }
+        .collapse-btn { width: 100%; background: #eee; color: #555; border: none; padding: 6px; border-radius: 6px; font-size: 11px; margin-bottom: 5px; display: flex; justify-content: space-between; align-items: center; }
 
         .person-card { padding: 8px; border-radius: 8px; margin-bottom: 6px; border-left: 5px solid #ccc; font-size: 13px; }
         .can-swap { border-left-color: var(--safe); background: #f6ffed; }
         .cannot-swap { border-left-color: var(--danger); background: #fff1f0; }
-        .batch-hero { border: 2px solid var(--safe); background: #eafff0 !important; }
+        .batch-hero { border: 2px solid var(--safe); background: #eafff0 !important; box-shadow: 0 0 8px rgba(46,125,50,0.3); }
+        .name-txt { font-weight: bold; }
+        .actual-shift-txt { font-size: 10px; color: #666; background: #eee; padding: 1px 4px; border-radius: 3px; }
+        .warning-tag { color: var(--danger); font-size: 10px; font-weight: bold; display: block; margin-top: 2px; }
     </style>
 </head>
 <body>
@@ -68,12 +66,13 @@
             <button class="secondary" onclick="setMode('list')">📱 手機</button>
         </div>
         <div id="batchBar" class="batch-bar">
-            <div id="selectedDaysTxt" style="font-size:12px; font-weight:bold;"></div>
+            <div id="selectedDaysTxt" style="font-size:12px; font-weight:bold; color:var(--primary);"></div>
             <div class="row-group">
                 <select id="batchShift" class="shift-select" style="margin:0; flex:2; font-size:14px; padding:8px;"></select>
                 <button onclick="applyBatch()" style="background:var(--safe); flex:1;">批次換</button>
                 <button onclick="clearSelection()" class="secondary" style="flex:1;">取消</button>
             </div>
+            <div style="font-size: 10px; color: #666;">* 將為您搜尋目前正在上這些班的人選</div>
         </div>
     </div>
 </div>
@@ -90,11 +89,13 @@
 
     function getTime(s) { if (!s) return null; const key = s.toUpperCase().split('/')[0]; return SHIFT_DB[key] || null; }
     function isOff(s) { return !s || OFF_LIST.includes(s.toUpperCase()) || s.toUpperCase().startsWith('D'); }
+    
     function getRest(pre, nxt) { 
         const p = getTime(pre), n = getTime(nxt); if (!p || !n) return 24; 
         const [pH, pM] = p[1].split(':').map(Number), [nH, nM] = n[0].split(':').map(Number); 
         return ((nH + 24) * 60 + nM - (pH * 60 + pM)) / 60; 
     }
+
     function checkLegality(schedule, d) {
         const rPre = getRest(schedule[d-1], schedule[d]), rNxt = getRest(schedule[d], schedule[d+1]);
         let streak = 0; for (let i = d; i >= 1; i--) { if (!isOff(schedule[i])) streak++; else break; }
@@ -104,11 +105,34 @@
 
     function setMode(mode) { state.currentMode = mode; document.getElementById('calendarArea').className = (mode === 'table' ? 'force-table' : ''); render(); }
     function toggleDay(d) { const idx = state.selectedDays.indexOf(d); if (idx > -1) state.selectedDays.splice(idx, 1); else state.selectedDays.push(d); updateBatchBar(); render(); }
-    function updateBatchBar() { const bar = document.getElementById('batchBar'); if (state.selectedDays.length > 0) { bar.style.display = 'flex'; document.getElementById('selectedDaysTxt').innerText = "已選日期：" + state.selectedDays.join(', '); let prefixes = new Set(); state.selectedDays.forEach(d => { if(state.master[d]) Object.keys(state.master[d]).forEach(p => prefixes.add(p)); }); let html = '<option value="">換成...</option>'; Array.from(prefixes).sort().forEach(p => html += `<option value="${p}">${p} 班</option>`); document.getElementById('batchShift').innerHTML = html; } else { bar.style.display = 'none'; } }
-    function applyBatch() { const p = document.getElementById('batchShift').value; if (p) state.selectedDays.forEach(d => state.simPrefix[d] = p); state.selectedDays = []; updateBatchBar(); render(); }
-    function clearSelection() { state.selectedDays = []; updateBatchBar(); render(); }
     
-    // 摺疊控制
+    function updateBatchBar() { 
+        const bar = document.getElementById('batchBar'); 
+        if (state.selectedDays.length > 0) { 
+            bar.style.display = 'flex'; 
+            document.getElementById('selectedDaysTxt').innerText = "已選日期：" + state.selectedDays.join(', '); 
+            
+            // 搜尋所有同事在這些日期中「出現過」的所有班別字母
+            let prefixes = new Set(); 
+            state.selectedDays.forEach(d => { if(state.master[d]) Object.keys(state.master[d]).forEach(p => prefixes.add(p)); }); 
+            prefixes.add(""); // 增加「休」選項
+
+            let html = '<option value="">換成「休」...</option>'; 
+            Array.from(prefixes).sort().forEach(p => { if(p) html += `<option value="${p}">換成「${p} 班」</option>`; }); 
+            document.getElementById('batchShift').innerHTML = html; 
+        } else { bar.style.display = 'none'; } 
+    }
+
+    function applyBatch() { 
+        const p = document.getElementById('batchShift').value; 
+        state.selectedDays.forEach(d => {
+            state.simPrefix[d] = p;
+            if(isOff(p)) state.collapsedDays[d] = true; else state.collapsedDays[d] = false;
+        }); 
+        state.selectedDays = []; updateBatchBar(); render(); 
+    }
+    
+    function clearSelection() { state.selectedDays = []; updateBatchBar(); render(); }
     function toggleCollapse(d) { state.collapsedDays[d] = !state.collapsedDays[d]; render(); }
 
     document.getElementById('uploadAll').onchange = function(e) {
@@ -145,8 +169,7 @@
         state.userName = Object.keys(state.personal).find(k => state.personal[k].id === state.targetId);
         for(let d=1; d<=31; d++) { 
             state.orig[d] = entry[d] || ""; 
-            state.simPrefix[d] = state.orig[d].charAt(0);
-            // 預設將休假天摺疊
+            state.simPrefix[d] = state.orig[d].charAt(0).toUpperCase();
             if(isOff(state.simPrefix[d])) state.collapsedDays[d] = true;
         }
         render();
@@ -162,30 +185,37 @@
         for(let d=1; d<=last; d++) {
             if(isTable && (startDay+d-1)%7===0 && d!==1) html += '</tr><tr>';
             const isSelected = state.selectedDays.includes(d);
-            const prefix = state.simPrefix[d];
-            const isDShift = isOff(prefix);
+            const targetPrefix = state.simPrefix[d];
+            const isDShift = isOff(targetPrefix);
             const isCollapsed = state.collapsedDays[d];
             
+            // 檢查自己換成目標班後的合法性
+            let mySched = {...state.orig};
+            mySched[d] = targetPrefix; // 簡化模擬
+            const myRes = checkLegality(mySched, d);
+
             const cardHtml = `
                 <div class="day-card ${isSelected?'selected':''}">
                     <div class="date-header" onclick="toggleDay(${d})">
                         <div><span class="date-num">${d}</span> <span class="orig-tag">原:${state.orig[d]||'休'}</span></div>
-                        <span style="font-size:12px; color:var(--primary);">${isSelected?'✅':'🔘'}</span>
+                        <span style="font-size:12px; color:var(--primary); font-weight:bold;">${isSelected?'✅':'🔘'}</span>
                     </div>
-                    <select class="shift-select" onchange="state.simPrefix[${d}]=this.value; if(isOff(this.value)) state.collapsedDays[${d}]=true; render();">
+                    <select class="shift-select" onchange="state.simPrefix[${d}]=this.value; state.collapsedDays[${d}]=isOff(this.value); render();">
                         <option value="">休</option>
-                        ${state.master[d] ? Object.keys(state.master[d]).sort().map(p => `<option value="${p}" ${p===prefix?'selected':''}>${p} 班</option>`).join('') : ''}
+                        ${state.master[d] ? Object.keys(state.master[d]).sort().map(p => `<option value="${p}" ${p===targetPrefix?'selected':''}>${p} 班</option>`).join('') : ''}
                     </select>
                     
-                    ${isDShift && getSwapCount(d, prefix) > 0 ? `
+                    ${myRes.restErr ? '<span class="warning-tag">⚠️ 你換成此班後休息不足</span>' : ''}
+
+                    ${isDShift && getSwapCount(d, targetPrefix) > 0 ? `
                         <button class="collapse-btn" onclick="toggleCollapse(${d})">
                             <span>${isCollapsed ? '▶ 展開' : '▼ 收合'} 同樣休假的人</span>
-                            <span>(${getSwapCount(d, prefix)}位)</span>
+                            <span>(${getSwapCount(d, targetPrefix)}人)</span>
                         </button>
                     ` : ''}
 
                     <div class="names-list" style="display: ${isDShift && isCollapsed ? 'none' : 'block'};">
-                        ${getSwapList(d, prefix)}
+                        ${getSwapList(d, targetPrefix)}
                     </div>
                 </div>`;
             html += isTable ? `<td>${cardHtml}</td>` : cardHtml;
@@ -194,35 +224,58 @@
     }
 
     function getSwapCount(day, prefix) {
-        if(!prefix || !state.master[day] || !state.master[day][prefix]) return 0;
-        return state.master[day][prefix].filter(i => i.name !== state.userName).length;
+        if(prefix === "") { // 找休假的人
+            let count = 0;
+            Object.keys(state.personal).forEach(name => {
+                if(name !== state.userName && isOff(state.personal[name][day])) count++;
+            });
+            return count;
+        }
+        return (state.master[day] && state.master[day][prefix]) ? state.master[day][prefix].filter(i => i.name !== state.userName).length : 0;
     }
 
-    function getSwapList(day, prefix) {
-        if(!prefix || !state.master[day] || !state.master[day][prefix]) return "";
-        const isBatchDay = state.selectedDays.includes(day);
-        const candidates = state.master[day][prefix].map(item => {
-            if(item.name === state.userName) return null;
-            let oSched = {...state.personal[item.name]}; oSched[day] = state.orig[day];
-            const res = checkLegality(oSched, day);
+    function getSwapList(day, targetPrefix) {
+        let candidates = [];
+        
+        // 搜尋目前「正在上目標班別」的人
+        if(targetPrefix === "") { // 搜尋同樣休假的人
+            Object.keys(state.personal).forEach(name => {
+                if(name !== state.userName && isOff(state.personal[name][day])) {
+                    candidates.push({ name: name, actual: state.personal[name][day] });
+                }
+            });
+        } else if (state.master[day] && state.master[day][targetPrefix]) {
+            candidates = state.master[day][targetPrefix].filter(i => i.name !== state.userName);
+        }
+
+        const processed = candidates.map(item => {
+            // 對方承接我原本班別後的適法性
+            let hisSched = {...state.personal[item.name]};
+            hisSched[day] = state.orig[day];
+            const res = checkLegality(hisSched, day);
+            
+            // 批次檢核：他是否在「所有選中日期」都上這個目標班，且換完都合法
             let isFullBatchMatch = false;
-            if (isBatchDay && state.selectedDays.length > 1) {
+            if (state.selectedDays.includes(day) && state.selectedDays.length > 1) {
                 isFullBatchMatch = state.selectedDays.every(bd => {
-                    const hasPrefix = state.personal[item.name][bd]?.startsWith(prefix);
+                    const hasTarget = targetPrefix === "" ? isOff(state.personal[item.name][bd]) : state.personal[item.name][bd]?.startsWith(targetPrefix);
                     let tempBatchSched = {...state.personal[item.name]};
                     state.selectedDays.forEach(sbd => tempBatchSched[sbd] = state.orig[sbd]);
-                    return hasPrefix && !checkLegality(tempBatchSched, bd).restErr;
+                    return hasTarget && !checkLegality(tempBatchSched, bd).restErr;
                 });
             }
             return { ...item, res, isFullBatchMatch };
-        }).filter(Boolean).sort((a,b) => (b.isFullBatchMatch?1:0) - (a.isFullBatchMatch?1:0));
+        }).sort((a,b) => (b.isFullBatchMatch?1:0) - (a.isFullBatchMatch?1:0));
 
-        return candidates.map(c => `
+        if(processed.length === 0) return '<div style="font-size:11px; color:#999; text-align:center;">(無人上此班)</div>';
+
+        return processed.map(c => `
             <div class="person-card ${!c.res.restErr && !c.res.streakErr ? 'can-swap' : 'cannot-swap'} ${c.isFullBatchMatch ? 'batch-hero' : ''}" style="${(state.selectedDays.length > 1 && !c.isFullBatchMatch)?'opacity:0.4;':''}">
                 <div class="card-row">
                     <span class="name-txt">${c.isFullBatchMatch ? '🎯 ' : ''}${c.name}</span>
                     <span class="actual-shift-txt">${c.actual}</span>
                 </div>
+                ${c.isFullBatchMatch ? '<span style="color:var(--safe); font-size:10px; font-weight:bold; display:block;">✨ 整批可對換</span>' : ''}
             </div>`).join('');
     }
 </script>
