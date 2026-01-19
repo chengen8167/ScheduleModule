@@ -3,149 +3,122 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>班表模擬器 - 手機優化版</title>
+    <title>班表模擬器 - 全寬優化版</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
         :root { --primary: #007AFF; --danger: #ff4d4f; --safe: #2e7d32; --bg: #f0f2f5; }
         
-        * { box-sizing: border-box; } /* 防止寬度被內邊距撐破的關鍵 */
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
         body { 
-            font-family: -apple-system, sans-serif; 
+            font-family: -apple-system, system-ui, sans-serif; 
             margin: 0; 
             background: var(--bg); 
-            font-size: 14px;
-            width: 100%;
-            overflow-x: hidden; /* 禁止左右晃動 */
+            width: 100vw;
+            overflow-x: hidden;
         }
 
-        /* 頂部配置區優化 */
+        /* 配置區固定在頂部 */
         .config-box { 
             background: #fff; 
-            padding: 10px; 
+            padding: 12px; 
             border-bottom: 1px solid #ddd; 
             position: sticky; 
             top: 0; 
-            z-index: 100;
-        }
-        
-        .input-group { 
-            display: flex; 
-            flex-direction: column; /* 手機優先：垂直排列 */
-            gap: 8px; 
-            max-width: 100%;
-        }
-
-        .row-group {
-            display: flex;
-            gap: 8px;
-            align-items: center;
+            z-index: 1000;
             width: 100%;
         }
-
+        
+        .input-group { display: flex; flex-direction: column; gap: 8px; }
+        .row-group { display: flex; gap: 8px; width: 100%; }
         .file-input-wrapper { 
             background: #f8f9fa; 
             padding: 8px; 
-            border-radius: 6px; 
+            border-radius: 8px; 
             border: 1px dashed #ccc; 
-            font-size: 12px;
             flex: 1;
+            font-size: 13px;
         }
 
-        input[type="text"] { 
-            padding: 8px; 
-            border: 1px solid #ccc; 
-            border-radius: 6px; 
-            width: 80px; 
-            font-weight: bold;
-        }
-
+        input[type="text"] { width: 80px; border: 1px solid #ccc; border-radius: 8px; text-align: center; font-weight: bold; }
+        
         .controls { 
-            display: grid;
-            grid-template-columns: repeat(3, 1fr); /* 三按鈕平均分配 */
-            gap: 5px;
-            width: 100%;
+            display: grid; 
+            grid-template-columns: repeat(3, 1fr); 
+            gap: 6px; 
         }
 
         button { 
-            background: var(--primary); 
-            color: white; 
-            border: none; 
-            padding: 8px 5px; 
-            border-radius: 6px; 
-            font-weight: bold; 
-            font-size: 12px;
-            white-space: nowrap;
+            background: var(--primary); color: white; border: none; 
+            padding: 10px; border-radius: 8px; font-weight: bold; font-size: 13px; 
         }
-        
         button.secondary { background: #6c757d; }
 
-        /* 月曆容器 */
-        #calendar-container { 
-            width: 100%;
-            padding: 10px;
-        }
-        
-        /* 表格與列表切換邏輯 */
-        table { width: 100%; border-collapse: collapse; }
+        /* 核心佈局修正 */
+        #calendar-container { width: 100%; padding: 10px; }
+        #calendarArea { width: 100%; }
 
-        /* 預設手機版：轉為卡片 */
+        /* 手機模式強制全寬 */
         @media (max-width: 768px) {
             #calendarArea:not(.force-table) table, 
+            #calendarArea:not(.force-table) tbody, 
             #calendarArea:not(.force-table) tr, 
             #calendarArea:not(.force-table) td { 
-                display: block; 
-                width: 100%; 
+                display: block !important; 
+                width: 100% !important; 
+                clear: both;
             }
             #calendarArea:not(.force-table) thead { display: none; }
             #calendarArea:not(.force-table) td { 
                 background: white;
                 margin-bottom: 15px; 
-                border-radius: 12px; 
-                box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+                border-radius: 15px; 
+                box-shadow: 0 4px 12px rgba(0,0,0,0.08);
                 border: 1px solid #eee;
-                padding: 15px;
+                padding: 16px !important;
                 height: auto !important;
             }
+            #calendarArea:not(.force-table) td.empty { display: none !important; }
         }
 
-        /* 電腦版模式強制修正 */
-        .force-table { overflow-x: auto; display: block; }
-        .force-table table { min-width: 800px; background: white; }
-        .force-table td { height: 160px; border: 1px solid #eee; vertical-align: top; padding: 5px; }
+        /* 電腦版表格模式 */
+        .force-table { overflow-x: auto; width: 100%; }
+        .force-table table { min-width: 900px; border-collapse: collapse; background: white; }
+        .force-table td { height: 180px; border: 1px solid #eee; vertical-align: top; padding: 8px; width: 14.28%; }
 
-        /* 下拉選單 */
+        /* 元件 UI */
+        .date-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+        .date-num { font-size: 1.6em; font-weight: 800; color: #1a1a1a; }
+        .orig-tag { font-size: 12px; color: #888; background: #f0f0f0; padding: 2px 6px; border-radius: 4px; }
+        
         .shift-select { 
             width: 100%; 
             padding: 12px; 
             border: 2px solid var(--primary); 
             background: #fff; 
             color: var(--primary); 
-            border-radius: 8px; 
+            border-radius: 10px; 
             font-weight: bold; 
-            font-size: 16px; /* 防止 iOS 自動縮放 */
-            margin: 10px 0;
+            font-size: 18px; 
+            margin: 8px 0;
+            appearance: none; /* 移除原生樣式以防跑版 */
+            text-align: center;
         }
 
-        .date-header { display: flex; justify-content: space-between; align-items: center; }
-        .date-num { font-size: 1.4em; font-weight: 800; color: #333; }
-        .orig-tag { font-size: 11px; color: #999; }
-        
-        /* 名單卡片 */
-        .names-list { margin-top: 10px; border-top: 1px solid #f0f0f0; padding-top: 5px; }
+        .names-list { margin-top: 12px; border-top: 1px solid #f0f0f0; padding-top: 8px; }
         .person-card { 
-            padding: 8px; 
-            border-radius: 8px; 
-            margin-bottom: 6px; 
-            border-left: 5px solid #ccc;
+            padding: 10px; border-radius: 10px; margin-bottom: 8px; 
+            border-left: 6px solid #ccc;
         }
         .card-row { display: flex; justify-content: space-between; align-items: center; }
-        .name-txt { font-weight: bold; font-size: 13px; }
-        .actual-shift-txt { font-size: 10px; color: #666; background: #eee; padding: 2px 5px; border-radius: 4px; }
+        .name-txt { font-weight: bold; font-size: 14px; }
+        .actual-shift-txt { font-size: 11px; color: #444; background: rgba(0,0,0,0.05); padding: 2px 6px; border-radius: 4px; font-family: monospace; }
         
         .can-swap { border-left-color: var(--safe); background: #f6ffed; }
         .cannot-swap { border-left-color: var(--danger); background: #fff1f0; }
-        .warning-tag { color: var(--danger); font-size: 10px; font-weight: bold; margin-top: 3px; display: block; }
+        .warning-tag { color: var(--danger); font-size: 11px; font-weight: bold; margin-top: 4px; display: block; }
+
+        #displayUser { padding: 0 5px; font-size: 15px; }
     </style>
 </head>
 <body>
@@ -154,10 +127,10 @@
     <div class="input-group">
         <div class="row-group">
             <div class="file-input-wrapper">
-                <input type="file" id="uploadAll" accept=".xlsx, .xls, .html" style="width: 100%;">
+                <input type="file" id="uploadAll" accept=".xlsx, .xls, .html" style="width:100%">
             </div>
             <input type="text" id="empId" value="A022994">
-            <button onclick="run()" style="padding: 8px 15px;">分析</button>
+            <button onclick="run()">分析</button>
         </div>
         <div class="controls">
             <button class="secondary" onclick="setMode('auto')">🌓 自動</button>
@@ -168,43 +141,26 @@
 </div>
 
 <div id="calendar-container">
-    <div id="displayUser" style="margin: 5px 0 10px 5px; font-weight: bold; color: var(--primary);"></div>
+    <div id="displayUser" style="margin-bottom:10px; font-weight:bold; color:var(--primary);"></div>
     <div id="calendarArea"></div>
 </div>
 
 <script>
-    const SHIFT_DB = { 
-        "E159G": ["05:15","14:45"], "E159J": ["05:15","15:00"], "E15XA": ["05:15","15:15"], 
-        "F00XA": ["06:00","16:00"], "F308A": ["06:30","14:30"], "F309G": ["06:30","16:00"], "F30XA": ["06:30","16:30"], 
-        "G008A": ["07:00","15:00"], "G009A": ["07:00","16:00"], "G158A": ["07:15","15:15"], "G308A": ["07:30","15:30"], 
-        "J00XA": ["10:00","20:00"], "J308A": ["10:30","18:30"], "K008A": ["11:00","19:00"], "L008A": ["12:00","20:00"], 
-        "N008A": ["14:00","22:00"], "N009A": ["14:00","23:00"], "N009G": ["14:00","23:30"], "N308A": ["14:30","22:30"], 
-        "N309A": ["14:30","23:30"], "N30XA": ["14:30","00:30"], "O008A": ["15:00","23:00"], "O308A": ["15:30","23:30"], 
-        "O309A": ["15:30","00:30"], "O309G": ["15:30","00:45"], "O30XA": ["15:30","01:30"], "TRN": ["08:30","17:30"] 
-    };
+    // 邏輯部分保持不變
+    const SHIFT_DB = { "E159G": ["05:15","14:45"], "E159J": ["05:15","15:00"], "E15XA": ["05:15","15:15"], "F00XA": ["06:00","16:00"], "F308A": ["06:30","14:30"], "F309G": ["06:30","16:00"], "F30XA": ["06:30","16:30"], "G008A": ["07:00","15:00"], "G009A": ["07:00","16:00"], "G158A": ["07:15","15:15"], "G308A": ["07:30","15:30"], "J00XA": ["10:00","20:00"], "J308A": ["10:30","18:30"], "K008A": ["11:00","19:00"], "L008A": ["12:00","20:00"], "N008A": ["14:00","22:00"], "N009A": ["14:00","23:00"], "N009G": ["14:00","23:30"], "N308A": ["14:30","22:30"], "N309A": ["14:30","23:30"], "N30XA": ["14:30","00:30"], "O008A": ["15:00","23:00"], "O308A": ["15:30","23:30"], "O309A": ["15:30","00:30"], "O309G": ["15:30","00:45"], "O30XA": ["15:30","01:30"], "TRN": ["08:30","17:30"] };
     const OFF_LIST = ['AL', 'D1', 'D2', 'D2A', 'D3', 'D3X', 'LEV', '休', ''];
     let state = { master: {}, personal: {}, orig: {}, simPrefix: {}, year: 2026, month: 0, userName: "", targetId: "A022994" };
 
     function getTime(s) { if (!s) return null; const key = s.toUpperCase().split('/')[0]; return SHIFT_DB[key] || null; }
     function isOff(s) { return !s || OFF_LIST.includes(s.toUpperCase()) || !getTime(s); }
-    function getRest(pre, nxt) { 
-        const p = getTime(pre), n = getTime(nxt); if (!p || !n) return 24; 
-        const [pH, pM] = p[1].split(':').map(Number); const [nH, nM] = n[0].split(':').map(Number); 
-        return ((nH + 24) * 60 + nM - (pH * 60 + pM)) / 60; 
-    }
-
+    function getRest(pre, nxt) { const p = getTime(pre), n = getTime(nxt); if (!p || !n) return 24; const [pH, pM] = p[1].split(':').map(Number); const [nH, nM] = n[0].split(':').map(Number); return ((nH + 24) * 60 + nM - (pH * 60 + pM)) / 60; }
     function checkLegality(schedule, d) {
         const rPre = getRest(schedule[d-1], schedule[d]); const rNxt = getRest(schedule[d], schedule[d+1]);
-        let streak = 0;
-        for (let i = d; i >= 1; i--) { if (!isOff(schedule[i])) streak++; else break; }
+        let streak = 0; for (let i = d; i >= 1; i--) { if (!isOff(schedule[i])) streak++; else break; }
         for (let i = d + 1; i <= 31; i++) { if (!isOff(schedule[i])) streak++; else break; }
         return { restErr: rPre < 11 || rNxt < 11, streakErr: streak > 6, rVal: Math.min(rPre, rNxt), sVal: streak };
     }
-
-    function setMode(mode) {
-        const area = document.getElementById('calendarArea');
-        area.className = (mode === 'table' ? 'force-table' : (mode === 'list' ? 'mode-list' : ''));
-    }
+    function setMode(mode) { const area = document.getElementById('calendarArea'); area.className = (mode === 'table' ? 'force-table' : (mode === 'list' ? 'mode-list' : '')); }
 
     document.getElementById('uploadAll').onchange = function(e) {
         const file = e.target.files[0]; if (!file) return;
@@ -253,10 +209,7 @@
         if(!entry) return alert("查無工號");
         state.userName = Object.keys(state.personal).find(k => state.personal[k].id === state.targetId);
         document.getElementById('displayUser').innerText = `👤 ${state.userName} (${state.year}/${state.month+1})`;
-        for(let d=1; d<=31; d++) { 
-            state.orig[d] = entry[d] || ""; 
-            state.simPrefix[d] = state.orig[d] ? state.orig[d].charAt(0).toUpperCase() : ""; 
-        }
+        for(let d=1; d<=31; d++) { state.orig[d] = entry[d] || ""; state.simPrefix[d] = state.orig[d] ? state.orig[d].charAt(0).toUpperCase() : ""; }
         render();
     }
 
@@ -267,9 +220,7 @@
         for(let i=0; i<startDay; i++) html += `<td class="empty"></td>`;
         for(let d=1; d<=last; d++) {
             if((startDay+d-1)%7===0 && d!==1) html += `</tr><tr>`;
-            let schedule = {...state.orig};
-            const res = checkLegality(schedule, d);
-            
+            const res = checkLegality({...state.orig}, d);
             html += `<td>
                 <div class="date-header"><span class="date-num">${d}</span><span class="orig-tag">原:${state.orig[d]||'休'}</span></div>
                 <select class="shift-select" onchange="state.simPrefix[${d}]=this.value; render();">
@@ -292,8 +243,7 @@
         if(!prefix || !state.master[day] || !state.master[day][prefix]) return "";
         return state.master[day][prefix].map(item => {
             if(item.name === state.userName) return "";
-            let oSched = {...state.personal[item.name]};
-            oSched[day] = state.orig[day];
+            let oSched = {...state.personal[item.name]}; oSched[day] = state.orig[day];
             const res = checkLegality(oSched, day);
             return `<div class="person-card ${!res.restErr && !res.streakErr ? 'can-swap' : 'cannot-swap'}">
                 <div class="card-row">
