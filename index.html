@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>班表模擬器 - 智慧顯示版</title>
+    <title>班表模擬器 - 新格式精確版</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
         :root { --primary: #007AFF; --danger: #ff4d4f; --safe: #2e7d32; --bg: #f0f2f5; --selected: #fff9c4; }
@@ -14,7 +14,7 @@
         .input-group { display: flex; flex-direction: column; gap: 8px; }
         .row-group { display: flex; gap: 8px; width: 100%; align-items: center; }
         .file-input-wrapper { background: #f8f9fa; padding: 8px; border-radius: 8px; border: 1px dashed #ccc; flex: 1; font-size: 12px; }
-        input[type="text"] { width: 85px; padding: 8px; border: 1px solid #ccc; border-radius: 8px; text-align: center; font-weight: bold; }
+        input[type="text"] { width: 90px; padding: 8px; border: 1px solid #ccc; border-radius: 8px; text-align: center; font-weight: bold; }
         
         .mode-controls { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 5px; }
         button { background: var(--primary); color: white; border: none; padding: 10px 5px; border-radius: 8px; font-weight: bold; font-size: 12px; cursor: pointer; }
@@ -24,7 +24,6 @@
         .batch-bar { background: #fffbe6; padding: 12px; border-radius: 12px; margin-top: 8px; display: none; flex-direction: column; gap: 8px; border: 2px solid #ffe58f; }
 
         #calendar-container { width: 100%; padding: 10px; }
-        
         .day-card { background: white; border-radius: 12px; padding: 12px; margin-bottom: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); border: 2px solid transparent; }
         .day-card.selected { border-color: #ffd600; background: var(--selected); }
 
@@ -58,8 +57,8 @@
     <div class="input-group">
         <div class="row-group">
             <div class="file-input-wrapper"><input type="file" id="uploadAll" accept=".xlsx, .xls, .html" style="width:100%"></div>
-            <input type="text" id="empId" placeholder="工號">
-            <button onclick="run()" class="action">分析</button>
+            <input type="text" id="empId" placeholder="輸入B欄工號">
+            <button onclick="run()" class="action">載入分析</button>
         </div>
         <div class="mode-controls">
             <button class="secondary" onclick="setMode('auto')">🌓 自動</button>
@@ -67,7 +66,7 @@
             <button class="secondary" onclick="setMode('list')">📱 手機</button>
         </div>
         <div id="batchBar" class="batch-bar">
-            <div style="font-size: 12px; font-weight: bold; color: #856404;">批次搜尋目標：<span id="selectedDaysTxt"></span></div>
+            <div style="font-size: 12px; font-weight: bold; color: #856404;">批次操作：已選 <span id="selectedDaysTxt"></span></div>
             <div class="row-group">
                 <select id="batchShiftTarget" class="shift-select" style="margin:0; flex:2; font-size:14px;" onchange="render()"></select>
                 <button onclick="applyBatch()" style="background:var(--safe); flex:1;">套用換班</button>
@@ -122,8 +121,7 @@
         state.activeBatchDays = [...state.selectedDays];
         state.activeBatchDays.forEach(d => {
             state.simPrefix[d] = state.activeBatchTarget;
-            // 只要模擬班別跟原始班別不同，就應該顯示（不摺疊）
-            state.collapsedDays[d] = (state.simPrefix[d] === (state.orig[d]?.charAt(0).toUpperCase() || ""));
+            state.collapsedDays[d] = (state.simPrefix[d] === (state.orig[d]?.charAt(0).toUpperCase() || "D"));
         });
         state.selectedDays = [];
         updateBatchBar();
@@ -131,13 +129,9 @@
     }
 
     function clearSelection() { 
-        state.selectedDays = []; 
-        state.activeBatchDays = []; 
-        state.activeBatchTarget = ""; 
-        updateBatchBar(); 
-        render(); 
+        state.selectedDays = []; state.activeBatchDays = []; state.activeBatchTarget = ""; 
+        updateBatchBar(); render(); 
     }
-    
     function toggleCollapse(d) { state.collapsedDays[d] = !state.collapsedDays[d]; render(); }
 
     document.getElementById('uploadAll').onchange = function(e) {
@@ -146,12 +140,26 @@
         reader.onload = (ev) => {
             const sheet = XLSX.read(new Uint8Array(ev.target.result), {type:'array'}).Sheets;
             const rows = XLSX.utils.sheet_to_json(sheet[Object.keys(sheet)[0]], {header:1, defval:""});
-            const ym = String(rows[4][0]).match(/\d+/g); state.year = ym[0]; state.month = ym[1]-1;
-            let dCols = {}; rows[5].forEach((c, i) => { if(!isNaN(parseInt(c))) dCols[parseInt(c)] = i; });
+            
+            // 根據新格式解析：期間在 rows[0][0]
+            const ym = String(rows[0][0]).match(/\d+/g); 
+            state.year = ym[0]; state.month = ym[1]-1;
+
+            // 新格式：工號在 B(index 1), 姓名在 C(index 2), 日期從 E(index 4) 開始
+            let dCols = {}; 
+            // 找標題列 (含日期數字的那一列)
+            const headerRow = rows.find(r => r.includes("01/01") || r.includes("01/04") || r.some(v => !isNaN(parseInt(v))));
+            headerRow.forEach((c, i) => {
+                let d = parseInt(String(c).split('/')[1] || c);
+                if(!isNaN(d) && d >= 1 && d <= 31) dCols[d] = i;
+            });
+
             state.master = {}; state.personal = {};
             rows.forEach(r => {
-                const id = String(r[3]||"").trim().toUpperCase(), name = String(r[2]||"").trim();
-                if (!id || !name) return;
+                const id = String(r[1]||"").trim().toUpperCase(); // B 欄
+                const name = String(r[2]||"").trim(); // C 欄
+                if (!id || id === "員工編號" || !name) return;
+
                 state.personal[name] = { id: id };
                 for(let d=1; d<=31; d++) {
                     let s = String(r[dCols[d]] || "").trim();
@@ -164,21 +172,20 @@
                     }
                 }
             });
-            run();
+            alert("讀取成功！請輸入工號後點擊分析。");
         };
         reader.readAsArrayBuffer(file);
     };
 
     function run() {
-        state.targetId = document.getElementById('empId').value.trim().toUpperCase() || "A022994";
+        state.targetId = document.getElementById('empId').value.trim().toUpperCase();
         let entry = Object.values(state.personal).find(p => p.id === state.targetId);
-        if(!entry) return alert("查無工號");
+        if(!entry) return alert("在 B 欄中找不到此工號");
         state.userName = Object.keys(state.personal).find(k => state.personal[k].id === state.targetId);
-        document.getElementById('displayUser').innerText = `👤 ${state.userName} (${state.year}/${state.month+1})`;
+        document.getElementById('displayUser').innerText = `👤 ${state.userName} (工號:${state.targetId}) - ${state.year}/${state.month+1}`;
         for(let d=1; d<=31; d++) { 
             state.orig[d] = entry[d] || ""; 
-            state.simPrefix[d] = state.orig[d].charAt(0).toUpperCase();
-            // 預設邏輯：原始班別與下拉選單（模擬班別）相同時，預設摺疊
+            state.simPrefix[d] = state.orig[d].charAt(0).toUpperCase() || "D";
             state.collapsedDays[d] = true;
         }
         render();
@@ -208,8 +215,8 @@
                         <span style="font-size:10px;">${isSelected?'✅':'🔘'}</span>
                     </div>
                     ${isSelected ? `<span class="target-hint">正在搜 ${currentSearchTarget || '休'} 班...</span>` : `
-                        <select class="shift-select" onchange="state.simPrefix[${d}]=this.value; state.collapsedDays[${d}]=(this.value === (state.orig[${d}]?.charAt(0).toUpperCase() || '')); render();">
-                            <option value="">休</option>
+                        <select class="shift-select" onchange="state.simPrefix[${d}]=this.value; state.collapsedDays[${d}]=(this.value === (state.orig[${d}]?.charAt(0).toUpperCase() || 'D')); render();">
+                            <option value="D">休</option>
                             ${state.master[d] ? Object.keys(state.master[d]).sort().map(p => `<option value="${p}" ${p===currentPrefix?'selected':''}>${p} 班</option>`).join('') : ''}
                         </select>
                     `}
@@ -222,13 +229,14 @@
 
     function getSwapList(day, targetPrefix) {
         let candidates = [];
-        if(!targetPrefix) {
+        const normalizedTarget = (targetPrefix === "D" || !targetPrefix) ? "" : targetPrefix;
+
+        if(!normalizedTarget) {
             Object.keys(state.personal).forEach(n => { if(n !== state.userName && isOff(state.personal[n][day])) candidates.push({name:n, actual:state.personal[n][day]}); });
-        } else if(state.master[day] && state.master[day][targetPrefix]) {
-            candidates = state.master[day][targetPrefix].filter(i => i.name !== state.userName);
+        } else if(state.master[day] && state.master[day][normalizedTarget]) {
+            candidates = state.master[day][normalizedTarget].filter(i => i.name !== state.userName);
         }
         
-        // 取得當前有效的批次日期組
         const activeDays = state.selectedDays.length > 0 ? state.selectedDays : (state.activeBatchDays.includes(day) ? state.activeBatchDays : [day]);
         const activeTarget = state.selectedDays.length > 0 ? document.getElementById('batchShiftTarget').value : (state.activeBatchDays.includes(day) ? state.activeBatchTarget : targetPrefix);
 
@@ -237,16 +245,15 @@
             const res = checkLegality(hisSched, day);
             let isFullBatchMatch = false;
             
-            // 嚴格整批命中檢核
             if (activeDays.length > 1) {
                 isFullBatchMatch = activeDays.every(ad => {
                     const shift = (state.personal[item.name][ad] || "").toUpperCase();
-                    const match = activeTarget === "" ? isOff(shift) : shift.startsWith(activeTarget.toUpperCase());
+                    const match = (activeTarget === "D" || !activeTarget) ? isOff(shift) : shift.startsWith(activeTarget.toUpperCase());
                     let tempSched = {...state.personal[item.name]};
                     tempSched[ad] = state.orig[ad];
                     return match && !checkLegality(tempSched, ad).restErr;
                 });
-            } else if (activeDays.length === 1 && targetPrefix !== (state.orig[day]?.charAt(0).toUpperCase() || "")) {
+            } else if (activeDays.length === 1 && targetPrefix !== (state.orig[day]?.charAt(0).toUpperCase() || "D")) {
                 isFullBatchMatch = !res.restErr;
             }
             return { ...item, res, isFullBatchMatch };
@@ -255,19 +262,16 @@
         const heroes = processed.filter(c => c.isFullBatchMatch);
         const others = processed.filter(c => !c.isFullBatchMatch);
         
-        // 核心邏輯：若模擬班別與原始班別相同，強制摺疊所有人
-        const isSameAsOriginal = (targetPrefix === (state.orig[day]?.charAt(0).toUpperCase() || ""));
+        const isSameAsOriginal = (targetPrefix === (state.orig[day]?.charAt(0).toUpperCase() || "D"));
         const isCollapsed = isSameAsOriginal ? true : state.collapsedDays[day];
 
         let html = '';
         if (isSameAsOriginal && !state.selectedDays.includes(day)) {
-            // 與原班相同且未在選取中，只顯示「展開」按鈕
             return `<button class="collapse-btn" style="background:#f9f9f9" onclick="state.collapsedDays[${day}]=false; render();">
                         <span>顯示同班名單 (${candidates.length}人)</span>
                     </button>`;
         }
 
-        // 1. 顯示整批命中者 (🎯)
         heroes.forEach(c => {
             html += `<div class="person-card ${c.res.restErr ? 'cannot-swap' : 'can-swap'} batch-hero">
                 <div style="display:flex; justify-content:space-between;">
@@ -277,7 +281,6 @@
             </div>`;
         });
 
-        // 2. 備選名單 (摺疊處理)
         if (others.length > 0) {
             if (isCollapsed) {
                 html += `<button class="collapse-btn" onclick="toggleCollapse(${day})">
