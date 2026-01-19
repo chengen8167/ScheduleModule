@@ -3,70 +3,74 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>班表模擬器 - 完整整合版</title>
+    <title>班表模擬器 - 批次決策整合版</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
         :root { --primary: #007AFF; --danger: #ff4d4f; --safe: #2e7d32; --bg: #f0f2f5; --selected: #fff9c4; }
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
         body { font-family: -apple-system, sans-serif; margin: 0; background: var(--bg); width: 100vw; overflow-x: hidden; }
 
-        /* 配置區與控制按鈕 */
+        /* 配置與控制區 */
         .config-box { background: #fff; padding: 12px; border-bottom: 1px solid #ddd; position: sticky; top: 0; z-index: 1000; }
         .input-group { display: flex; flex-direction: column; gap: 8px; }
         .row-group { display: flex; gap: 8px; width: 100%; align-items: center; }
-        .file-input-wrapper { background: #f8f9fa; padding: 8px; border-radius: 8px; border: 1px dashed #ccc; flex: 1; font-size: 12px; }
-        input[type="text"] { width: 80px; padding: 8px; border: 1px solid #ccc; border-radius: 8px; text-align: center; font-weight: bold; }
+        .file-input-wrapper { background: #f8f9fa; padding: 8px; border-radius: 8px; border: 1px dashed #ccc; flex: 1; font-size: 12px; overflow: hidden; }
+        input[type="text"] { width: 85px; padding: 8px; border: 1px solid #ccc; border-radius: 8px; text-align: center; font-weight: bold; }
         
-        /* 模式切換按鈕 */
         .mode-controls { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 5px; }
-        button { background: var(--primary); color: white; border: none; padding: 8px; border-radius: 8px; font-weight: bold; font-size: 12px; cursor: pointer; }
+        button { background: var(--primary); color: white; border: none; padding: 10px 5px; border-radius: 8px; font-weight: bold; font-size: 12px; cursor: pointer; transition: 0.2s; }
+        button:active { opacity: 0.7; }
         button.secondary { background: #6c757d; }
         button.action { background: var(--safe); }
 
-        /* 批量操作工具欄 (預設隱藏) */
+        /* 批量操作工具欄 */
         .batch-bar { 
-            background: #e3f2fd; padding: 10px; border-radius: 10px; margin-top: 8px; 
-            display: none; flex-direction: column; gap: 8px; border: 1px solid #90caf9;
+            background: #e3f2fd; padding: 10px; border-radius: 12px; margin-top: 8px; 
+            display: none; flex-direction: column; gap: 8px; border: 2px solid #90caf9;
         }
 
-        /* 佈局核心：手機版全寬卡片 */
+        /* 佈局容器 */
         #calendar-container { width: 100%; padding: 10px; }
         
+        /* 手機卡片模式 */
         @media (max-width: 768px) {
             #calendarArea:not(.force-table) .day-card { 
-                display: block; width: 100%; background: white; margin-bottom: 15px; 
+                display: block; width: 100% !important; background: white; margin-bottom: 15px; 
                 border-radius: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); 
                 padding: 16px; border: 2px solid transparent;
             }
             #calendarArea:not(.force-table) .day-card.selected { border-color: #ffd600; background: var(--selected); }
-            #calendarArea:not(.force-table) table { display: none; } /* 隱藏原本的表格結構 */
         }
 
-        /* 電腦版表格模式強制設定 */
-        .force-table { overflow-x: auto; background: white; padding: 10px; }
-        .force-table table { width: 100%; min-width: 900px; border-collapse: collapse; table-layout: fixed; }
-        .force-table td { border: 1px solid #eee; padding: 8px; vertical-align: top; height: 180px; }
+        /* 電腦表格模式 */
+        .force-table { overflow-x: auto; background: white; padding: 10px; border-radius: 8px; }
+        .force-table table { width: 100%; min-width: 1000px; border-collapse: collapse; table-layout: fixed; }
+        .force-table td { border: 1px solid #eee; padding: 8px; vertical-align: top; height: auto; min-height: 200px; }
         .force-table .day-card { height: 100%; }
-        .force-table .day-card.selected { background: var(--selected); }
+        .force-table .day-card.selected { background: var(--selected); outline: 2px solid #ffd600; }
 
         /* 元素 UI */
-        .date-header { display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
+        .date-header { display: flex; justify-content: space-between; align-items: center; cursor: pointer; padding-bottom: 5px; }
         .date-num { font-size: 1.6em; font-weight: 800; color: #1a1a1a; }
-        .orig-tag { font-size: 11px; color: #888; background: #f0f0f0; padding: 2px 5px; border-radius: 4px; }
+        .orig-tag { font-size: 11px; color: #888; background: #f0f0f0; padding: 2px 6px; border-radius: 4px; }
         
         .shift-select { 
             width: 100%; padding: 10px; border: 2px solid var(--primary); 
             background: #fff; border-radius: 8px; font-weight: bold; font-size: 18px; margin: 8px 0;
+            text-align: center;
         }
 
-        .person-card { padding: 8px; border-radius: 8px; margin-bottom: 6px; border-left: 5px solid #ccc; font-size: 13px; }
+        /* 人名卡片樣式 */
+        .names-list { margin-top: 10px; border-top: 1px solid #eee; padding-top: 8px; }
+        .person-card { padding: 10px; border-radius: 10px; margin-bottom: 8px; border-left: 6px solid #ccc; transition: 0.2s; }
         .card-row { display: flex; justify-content: space-between; align-items: center; }
-        .actual-shift-txt { font-size: 10px; color: #666; background: #eee; padding: 1px 4px; border-radius: 3px; }
+        .name-txt { font-weight: bold; font-size: 14px; }
+        .actual-shift-txt { font-size: 10px; color: #444; background: rgba(0,0,0,0.06); padding: 2px 6px; border-radius: 4px; font-family: monospace; }
         
         .can-swap { border-left-color: var(--safe); background: #f6ffed; }
         .cannot-swap { border-left-color: var(--danger); background: #fff1f0; }
-        .batch-hero { border: 2px solid var(--safe); box-shadow: 0 0 8px rgba(46,125,50,0.3); }
-        .warning-tag { color: var(--danger); font-size: 10px; font-weight: bold; display: block; margin-top: 3px; }
+        .batch-hero { border: 2px solid var(--safe); box-shadow: 0 0 10px rgba(46,125,50,0.25); background: #eafff0 !important; }
+        .warning-tag { color: var(--danger); font-size: 11px; font-weight: bold; display: block; margin-top: 4px; }
     </style>
 </head>
 <body>
@@ -75,7 +79,7 @@
     <div class="input-group">
         <div class="row-group">
             <div class="file-input-wrapper"><input type="file" id="uploadAll" accept=".xlsx, .xls, .html" style="width:100%"></div>
-            <input type="text" id="empId" value="A022994">
+            <input type="text" id="empId" placeholder="工號">
             <button onclick="run()" class="action">分析</button>
         </div>
         
@@ -86,12 +90,13 @@
         </div>
 
         <div id="batchBar" class="batch-bar">
-            <div style="font-size: 12px; font-weight: bold; color: #1976d2;">批量選取: <span id="selectedDaysTxt"></span></div>
+            <div style="font-size: 13px; font-weight: bold; color: #1976d2;">已選取日期：<span id="selectedDaysTxt"></span></div>
             <div class="row-group" style="margin-top:5px;">
-                <select id="batchShift" class="shift-select" style="margin:0; flex:1; font-size:14px; padding:8px;"></select>
-                <button onclick="applyBatch()" style="background:var(--safe); padding: 8px 15px;">更換</button>
-                <button onclick="clearSelection()" class="secondary">取消</button>
+                <select id="batchShift" class="shift-select" style="margin:0; flex:2; font-size:15px; padding:8px;"></select>
+                <button onclick="applyBatch()" style="background:var(--safe); flex:1;">批次換</button>
+                <button onclick="clearSelection()" class="secondary" style="flex:1;">取消</button>
             </div>
+            <div style="font-size: 10px; color: #666;">* 系統將自動篩選能「一次滿足所有日期」的人選</div>
         </div>
     </div>
 </div>
@@ -102,10 +107,17 @@
 </div>
 
 <script>
-    // 數據與核心邏輯
-    const SHIFT_DB = { "E159G": ["05:15","14:45"], "E159J": ["05:15","15:00"], "E15XA": ["05:15","15:15"], "F00XA": ["06:00","16:00"], "F308A": ["06:30","14:30"], "F309G": ["06:30","16:00"], "F30XA": ["06:30","16:30"], "G008A": ["07:00","15:00"], "G009A": ["07:00","16:00"], "G158A": ["07:15","15:15"], "G308A": ["07:30","15:30"], "J00XA": ["10:00","20:00"], "J308A": ["10:30","18:30"], "K008A": ["11:00","19:00"], "L008A": ["12:00","20:00"], "N008A": ["14:00","22:00"], "N009A": ["14:00","23:00"], "N009G": ["14:00","23:30"], "N308A": ["14:30","22:30"], "N309A": ["14:30","23:30"], "N30XA": ["14:30","00:30"], "O008A": ["15:00","23:00"], "O308A": ["15:30","23:30"], "O309A": ["15:30","00:30"], "O309G": ["15:30","00:45"], "O30XA": ["15:30","01:30"], "TRN": ["08:30","17:30"] };
+    const SHIFT_DB = { 
+        "E159G": ["05:15","14:45"], "E159J": ["05:15","15:00"], "E15XA": ["05:15","15:15"], 
+        "F00XA": ["06:00","16:00"], "F308A": ["06:30","14:30"], "F309G": ["06:30","16:00"], "F30XA": ["06:30","16:30"], 
+        "G008A": ["07:00","15:00"], "G009A": ["07:00","16:00"], "G158A": ["07:15","15:15"], "G308A": ["07:30","15:30"], 
+        "J00XA": ["10:00","20:00"], "J308A": ["10:30","18:30"], "K008A": ["11:00","19:00"], "L008A": ["12:00","20:00"], 
+        "N008A": ["14:00","22:00"], "N009A": ["14:00","23:00"], "N009G": ["14:00","23:30"], "N308A": ["14:30","22:30"], 
+        "N309A": ["14:30","23:30"], "N30XA": ["14:30","00:30"], "O008A": ["15:00","23:00"], "O308A": ["15:30","23:30"], 
+        "O309A": ["15:30","00:30"], "O309G": ["15:30","00:45"], "O30XA": ["15:30","01:30"], "TRN": ["08:30","17:30"] 
+    };
     const OFF_LIST = ['AL', 'D1', 'D2', 'D2A', 'D3', 'D3X', 'LEV', '休', ''];
-    let state = { master: {}, personal: {}, orig: {}, simPrefix: {}, year: 2026, month: 0, userName: "", targetId: "A022994", selectedDays: [], currentMode: 'auto' };
+    let state = { master: {}, personal: {}, orig: {}, simPrefix: {}, year: 2026, month: 0, userName: "", targetId: "", selectedDays: [], currentMode: 'auto' };
 
     function getTime(s) { if (!s) return null; const key = s.toUpperCase().split('/')[0]; return SHIFT_DB[key] || null; }
     function isOff(s) { return !s || OFF_LIST.includes(s.toUpperCase()) || !getTime(s); }
@@ -121,15 +133,13 @@
         return { restErr: rPre < 11 || rNxt < 11, streakErr: streak > 6, rVal: Math.min(rPre, rNxt), sVal: streak };
     }
 
-    // 模式切換
     function setMode(mode) {
         state.currentMode = mode;
         const area = document.getElementById('calendarArea');
-        area.className = (mode === 'table' ? 'force-table' : (mode === 'list' ? 'mode-list' : ''));
+        area.className = (mode === 'table' ? 'force-table' : '');
         render();
     }
 
-    // 批量選取邏輯
     function toggleDay(d) {
         const idx = state.selectedDays.indexOf(d);
         if (idx > -1) state.selectedDays.splice(idx, 1);
@@ -146,7 +156,7 @@
             document.getElementById('selectedDaysTxt').innerText = state.selectedDays.join(', ');
             let prefixes = new Set();
             state.selectedDays.forEach(d => { if(state.master[d]) Object.keys(state.master[d]).forEach(p => prefixes.add(p)); });
-            let html = '<option value="">更換成...</option>';
+            let html = '<option value="">換成...</option>';
             Array.from(prefixes).sort().forEach(p => html += `<option value="${p}">${p} 班</option>`);
             document.getElementById('batchShift').innerHTML = html;
         } else { bar.style.display = 'none'; }
@@ -160,10 +170,9 @@
 
     function clearSelection() { state.selectedDays = []; updateBatchBar(); render(); }
 
-    // 資料讀取
     document.getElementById('uploadAll').onchange = function(e) {
         const file = e.target.files[0]; if (!file) return;
-        state.targetId = document.getElementById('empId').value.trim().toUpperCase();
+        state.targetId = document.getElementById('empId').value.trim().toUpperCase() || "A022994";
         const reader = new FileReader();
         reader.onload = (ev) => {
             const sheet = XLSX.read(new Uint8Array(ev.target.result), {type:'array'}).Sheets;
@@ -211,18 +220,18 @@
         for(let d=1; d<=last; d++) {
             if(isTable && (startDay+d-1)%7===0 && d!==1) html += '</tr><tr>';
             const isSelected = state.selectedDays.includes(d);
-            const res = checkLegality({...state.orig}, d);
+            const res = checkLegality({...state.simPrefix}, d); // 模擬切換後的適法性
             const cardHtml = `
                 <div class="day-card ${isSelected?'selected':''}">
                     <div class="date-header" onclick="toggleDay(${d})">
                         <div><span class="date-num">${d}</span> <span class="orig-tag">原:${state.orig[d]||'休'}</span></div>
-                        <span style="font-size:10px; color:var(--primary);">${isSelected?'✅':'🔘'}</span>
+                        <span style="font-size:12px; color:var(--primary); font-weight:bold;">${isSelected?'✅ 選取中':'🔘'}</span>
                     </div>
                     <select class="shift-select" onchange="state.simPrefix[${d}]=this.value; render();">
                         <option value="">休</option>
                         ${state.master[d] ? Object.keys(state.master[d]).sort().map(p => `<option value="${p}" ${p===state.simPrefix[d]?'selected':''}>${p} 班</option>`).join('') : ''}
                     </select>
-                    ${res.restErr ? '<span class="warning-tag">⚠️ 休息不足</span>' : ''}
+                    ${res.restErr ? '<span class="warning-tag">⚠️ 切換後你休息不足</span>' : ''}
                     <div class="names-list">${getSwapList(d, state.simPrefix[d])}</div>
                 </div>`;
             html += isTable ? `<td>${cardHtml}</td>` : cardHtml;
@@ -233,29 +242,47 @@
     function getSwapList(day, prefix) {
         if(!prefix || !state.master[day] || !state.master[day][prefix]) return "";
         const isBatchDay = state.selectedDays.includes(day);
+        
         const candidates = state.master[day][prefix].map(item => {
             if(item.name === state.userName) return null;
-            let oSched = {...state.personal[item.name]}; oSched[day] = state.orig[day];
-            const res = checkLegality(oSched, day);
+            
+            // 單日適法性
+            let oSchedSingle = {...state.personal[item.name]};
+            oSchedSingle[day] = state.orig[day];
+            const resSingle = checkLegality(oSchedSingle, day);
+            
+            // 核心：整批符合性判斷
             let isFullBatchMatch = false;
             if (isBatchDay && state.selectedDays.length > 1) {
                 isFullBatchMatch = state.selectedDays.every(bd => {
                     const hasPrefix = state.personal[item.name][bd]?.startsWith(prefix);
-                    let tempSched = {...state.personal[item.name]};
-                    state.selectedDays.forEach(sbd => tempSched[sbd] = state.orig[sbd]);
-                    return hasPrefix && !checkLegality(tempSched, bd).restErr;
+                    let tempBatchSched = {...state.personal[item.name]};
+                    state.selectedDays.forEach(sbd => tempBatchSched[sbd] = state.orig[sbd]);
+                    const bRes = checkLegality(tempBatchSched, bd);
+                    return hasPrefix && !bRes.restErr && !bRes.streakErr;
                 });
             }
-            return { ...item, res, isFullBatchMatch };
-        }).filter(Boolean).sort((a,b) => (b.isFullBatchMatch?1:0) - (a.isFullBatchMatch?1:0));
+            return { ...item, res: resSingle, isFullBatchMatch };
+        }).filter(Boolean);
 
-        return candidates.map(c => `
-            <div class="person-card ${!c.res.restErr && !c.res.streakErr ? 'can-swap' : 'cannot-swap'} ${c.isFullBatchMatch ? 'batch-hero' : ''}">
-                <div class="card-row">
-                    <span class="name-txt">${c.isFullBatchMatch ? '🌟 ' : ''}${c.name}</span>
-                    <span class="actual-shift-txt">${c.actual}</span>
-                </div>
-            </div>`).join('');
+        // 排序：符合整批者置頂
+        candidates.sort((a,b) => (b.isFullBatchMatch?1:0) - (a.isFullBatchMatch?1:0));
+
+        return candidates.map(c => {
+            // 若在批次模式且不符合整批條件，則半透明化
+            const isDim = (state.selectedDays.length > 1 && !c.isFullBatchMatch);
+            const statusStyle = isDim ? 'style="opacity: 0.4;"' : '';
+            
+            return `
+                <div class="person-card ${!c.res.restErr && !c.res.streakErr ? 'can-swap' : 'cannot-swap'} ${c.isFullBatchMatch ? 'batch-hero' : ''}" ${statusStyle}>
+                    <div class="card-row">
+                        <span class="name-txt">${c.isFullBatchMatch ? '🎯 ' : ''}${c.name}</span>
+                        <span class="actual-shift-txt">${c.actual}</span>
+                    </div>
+                    ${c.isFullBatchMatch ? '<span style="color:var(--safe); font-size:10px; font-weight:bold; display:block; margin-top:2px;">✨ 整批符合</span>' : ''}
+                    ${!c.isFullBatchMatch && isBatchDay && state.selectedDays.length > 1 ? '<span style="color:#999; font-size:9px; display:block;">無法一次換整批</span>' : ''}
+                </div>`;
+        }).join('');
     }
 </script>
 </body>
