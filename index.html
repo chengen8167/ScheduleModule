@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>班表模擬器 - 預設工號版</title>
+    <title>班表模擬器 - 格式強化修正版</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
         :root { --primary: #007AFF; --danger: #ff4d4f; --safe: #2e7d32; --bg: #f0f2f5; --selected: #fff9c4; }
@@ -32,7 +32,8 @@
         .force-table td { border: 1px solid #eee; padding: 8px; vertical-align: top; width: 14.28%; }
 
         .date-header { display: flex; justify-content: space-between; align-items: center; cursor: pointer; margin-bottom: 5px; }
-        .date-num { font-size: 1.4em; font-weight: 800; }
+        .date-num { font-size: 1.2em; font-weight: 800; }
+        .date-label { font-size: 0.8em; color: #666; margin-left: 5px; }
         .orig-tag { font-size: 10px; color: #888; background: #f0f0f0; padding: 1px 4px; border-radius: 4px; }
         
         .shift-select { width: 100%; padding: 8px; border: 2px solid var(--primary); background: #fff; border-radius: 6px; font-weight: bold; font-size: 16px; text-align: center; }
@@ -56,7 +57,7 @@
 <div class="config-box">
     <div class="input-group">
         <div class="row-group">
-            <div class="file-input-wrapper"><input type="file" id="uploadAll" accept=".xlsx, .xls, .html" style="width:100%"></div>
+            <div class="file-input-wrapper"><input type="file" id="uploadAll" accept=".xlsx, .xls, .csv" style="width:100%"></div>
             <input type="text" id="empId" value="A022994" placeholder="工號">
             <button onclick="run()" class="action">載入分析</button>
         </div>
@@ -84,7 +85,7 @@
 <script>
     const SHIFT_DB = { "E159G": ["05:15","14:45"], "E159J": ["05:15","15:00"], "E15XA": ["05:15","15:15"], "F00XA": ["06:00","16:00"], "F308A": ["06:30","14:30"], "F309G": ["06:30","16:00"], "F30XA": ["06:30","16:30"], "G008A": ["07:00","15:00"], "G009A": ["07:00","16:00"], "G158A": ["07:15","15:15"], "G308A": ["07:30","15:30"], "J00XA": ["10:00","20:00"], "J308A": ["10:30","18:30"], "K008A": ["11:00","19:00"], "L008A": ["12:00","20:00"], "N008A": ["14:00","22:00"], "N009A": ["14:00","23:00"], "N009G": ["14:00","23:30"], "N308A": ["14:30","22:30"], "N309A": ["14:30","23:30"], "N30XA": ["14:30","00:30"], "O008A": ["15:00","23:00"], "O308A": ["15:30","23:30"], "O309A": ["15:30","00:30"], "O309G": ["15:30","00:45"], "O30XA": ["15:30","01:30"], "TRN": ["08:30","17:30"] };
     const OFF_LIST = ['AL', 'D1', 'D2', 'D2A', 'D3', 'D3X', 'LEV', '休', ''];
-    let state = { master: {}, personal: {}, orig: {}, simPrefix: {}, year: 2026, month: 0, userName: "", targetId: "", selectedDays: [], currentMode: 'auto', collapsedDays: {}, activeBatchDays: [], activeBatchTarget: "" };
+    let state = { master: {}, personal: {}, orig: {}, simPrefix: {}, dateFullLabels: {}, dayKeys: [], year: 2026, month: 0, userName: "", targetId: "", selectedDays: [], currentMode: 'auto', collapsedDays: {}, activeBatchDays: [], activeBatchTarget: "" };
 
     function getTime(s) { if (!s) return null; const key = s.toUpperCase().split('/')[0]; return SHIFT_DB[key] || null; }
     function isOff(s) { if(!s) return true; let up = s.toUpperCase(); return OFF_LIST.includes(up) || up.startsWith('D'); }
@@ -93,7 +94,11 @@
         const [pH, pM] = p[1].split(':').map(Number), [nH, nM] = n[0].split(':').map(Number); 
         return ((nH + 24) * 60 + nM - (pH * 60 + pM)) / 60; 
     }
-    function checkLegality(schedule, d) { return { restErr: getRest(schedule[d-1], schedule[d]) < 11 || getRest(schedule[d], schedule[d+1]) < 11 }; }
+    function checkLegality(schedule, dIdx) { 
+        const d = state.dayKeys[dIdx];
+        const prev = state.dayKeys[dIdx-1], next = state.dayKeys[dIdx+1];
+        return { restErr: getRest(schedule[prev], schedule[d]) < 11 || getRest(schedule[d], schedule[next]) < 11 }; 
+    }
 
     function setMode(mode) { state.currentMode = mode; render(); }
     function toggleDay(d) {
@@ -105,14 +110,12 @@
         const bar = document.getElementById('batchBar');
         if (state.selectedDays.length > 0) {
             bar.style.display = 'flex';
-            document.getElementById('selectedDaysTxt').innerText = state.selectedDays.sort((a,b)=>a-b).join(', ') + " 日";
+            document.getElementById('selectedDaysTxt').innerText = state.selectedDays.join(', ');
             let prefixes = new Set();
             state.selectedDays.forEach(d => { if(state.master[d]) Object.keys(state.master[d]).forEach(p => prefixes.add(p)); });
             let html = '<option value="D">搜尋：休假人選</option>';
             Array.from(prefixes).sort().forEach(p => { if(p!=="D") html += `<option value="${p}">搜尋：${p} 班人選</option>`; });
-            const currentVal = document.getElementById('batchShiftTarget').value;
             document.getElementById('batchShiftTarget').innerHTML = html;
-            if(currentVal) document.getElementById('batchShiftTarget').value = currentVal;
         } else { bar.style.display = 'none'; }
     }
 
@@ -121,51 +124,51 @@
         state.activeBatchDays = [...state.selectedDays];
         state.activeBatchDays.forEach(d => {
             state.simPrefix[d] = state.activeBatchTarget;
-            // 若模擬班別類別不同，則不摺疊
             state.collapsedDays[d] = (state.simPrefix[d] === (state.orig[d]?.charAt(0).toUpperCase() || "D"));
         });
-        state.selectedDays = [];
-        updateBatchBar();
-        render();
+        state.selectedDays = []; updateBatchBar(); render();
     }
 
-    function clearSelection() { 
-        state.selectedDays = []; state.activeBatchDays = []; state.activeBatchTarget = ""; 
-        updateBatchBar(); render(); 
-    }
-    function toggleCollapse(d) { state.collapsedDays[d] = !state.collapsedDays[d]; render(); }
+    function clearSelection() { state.selectedDays = []; state.activeBatchDays = []; render(); updateBatchBar(); }
 
     document.getElementById('uploadAll').onchange = function(e) {
         const file = e.target.files[0];
         const reader = new FileReader();
         reader.onload = (ev) => {
-            const sheet = XLSX.read(new Uint8Array(ev.target.result), {type:'array'}).Sheets;
-            const rows = XLSX.utils.sheet_to_json(sheet[Object.keys(sheet)[0]], {header:1, defval:""});
+            const data = new Uint8Array(ev.target.result);
+            const workbook = XLSX.read(data, {type:'array'});
+            const rows = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], {header:1, defval:""});
             
-            // 解析日期範圍 (新格式首列)
-            const ym = String(rows[0][0]).match(/\d+/g); 
-            state.year = ym ? ym[0] : 2026; state.month = ym ? ym[1]-1 : 0;
+            // 1. 尋找標題列定位 (含「員工編號」的那一列)
+            let headerIdx = rows.findIndex(r => r.includes("員工編號") || r.includes("員工姓名"));
+            if(headerIdx === -1) return alert("找不到標題列，請確認檔案格式是否正確（B欄應為工號）");
+            const headerRow = rows[headerIdx];
 
-            // 尋找表頭列與日期定位
-            let dCols = {}; 
-            const headerRow = rows.find(r => r.some(v => String(v).includes("01/")));
-            if(headerRow){
-                headerRow.forEach((c, i) => {
-                    let dMatch = String(c).match(/\/(\d+)/);
-                    let d = dMatch ? parseInt(dMatch[1]) : parseInt(c);
-                    if(!isNaN(d) && d >= 1 && d <= 31) dCols[d] = i;
-                });
-            }
+            // 2. 定位工號(B)、姓名(C)與日期列
+            const idCol = 1; // B
+            const nameCol = 2; // C
+            state.dayKeys = [];
+            state.dateFullLabels = {};
+            headerRow.forEach((cell, i) => {
+                const val = String(cell);
+                if(val.includes("/")) { // 抓取 01/04 這種格式
+                    state.dayKeys.push(val);
+                    state.dateFullLabels[val] = val;
+                }
+            });
 
+            // 3. 解析所有人資料
             state.master = {}; state.personal = {};
-            rows.forEach(r => {
-                const id = String(r[1]||"").trim().toUpperCase(); // B欄工號
-                const name = String(r[2]||"").trim(); // C欄姓名
-                if (!id || id === "員工編號" || !name) return;
+            for(let i = headerIdx + 1; i < rows.length; i++) {
+                const r = rows[i];
+                const id = String(r[idCol]||"").trim().toUpperCase();
+                const name = String(r[nameCol]||"").trim();
+                if(!id || id === "總計" || id.includes("平均")) continue;
 
                 state.personal[name] = { id: id };
-                for(let d=1; d<=31; d++) {
-                    let s = String(r[dCols[d]] || "").trim();
+                state.dayKeys.forEach((d, dIdx) => {
+                    const colIdx = headerRow.indexOf(d);
+                    let s = String(r[colIdx] || "").trim();
                     state.personal[name][d] = s;
                     if(s) {
                         const p = s.charAt(0).toUpperCase();
@@ -173,9 +176,9 @@
                         if(!state.master[d][p]) state.master[d][p] = [];
                         state.master[d][p].push({ name, actual: s });
                     }
-                }
-            });
-            run(); // 自動根據預設工號跑分析
+                });
+            }
+            run();
         };
         reader.readAsArrayBuffer(file);
     };
@@ -183,69 +186,60 @@
     function run() {
         state.targetId = document.getElementById('empId').value.trim().toUpperCase();
         let entry = Object.values(state.personal).find(p => p.id === state.targetId);
-        if(!entry) {
-             document.getElementById('displayUser').innerText = "❌ 找不到工號 " + state.targetId;
-             return;
-        }
+        if(!entry) return alert("找不到工號: " + state.targetId);
+        
         state.userName = Object.keys(state.personal).find(k => state.personal[k].id === state.targetId);
-        document.getElementById('displayUser').innerText = `👤 ${state.userName} (工號:${state.targetId}) - ${state.year}/${state.month+1}`;
-        for(let d=1; d<=31; d++) { 
-            state.orig[d] = entry[d] || ""; 
+        document.getElementById('displayUser').innerText = `👤 ${state.userName} (${state.targetId})`;
+        
+        state.dayKeys.forEach(d => {
+            state.orig[d] = entry[d] || "";
             state.simPrefix[d] = state.orig[d].charAt(0).toUpperCase() || "D";
-            state.collapsedDays[d] = true; // 預設全部折疊人名
-        }
+            state.collapsedDays[d] = true;
+        });
         render();
     }
 
     function render() {
-        const last = new Date(state.year, state.month + 1, 0).getDate();
-        const startDay = new Date(state.year, state.month, 1).getDay();
         const area = document.getElementById('calendarArea');
         const isTable = state.currentMode === 'table' || (state.currentMode === 'auto' && window.innerWidth > 768);
         const batchTarget = document.getElementById('batchShiftTarget')?.value || "";
 
         area.className = isTable ? 'force-table' : '';
         let html = isTable ? '<table><tbody><tr>' : '';
-        if(isTable) for(let i=0; i<startDay; i++) html += '<td></td>';
 
-        for(let d=1; d<=last; d++) {
-            if(isTable && (startDay+d-1)%7===0 && d!==1) html += '</tr><tr>';
+        state.dayKeys.forEach((d, idx) => {
+            if(isTable && idx > 0 && idx % 7 === 0) html += '</tr><tr>';
             const isSelected = state.selectedDays.includes(d);
             const currentPrefix = state.simPrefix[d];
             const currentSearchTarget = isSelected ? batchTarget : currentPrefix;
 
             const cardHtml = `
                 <div class="day-card ${isSelected?'selected':''}">
-                    <div class="date-header" onclick="toggleDay(${d})">
-                        <div><span class="date-num">${d}</span> <span class="orig-tag">原:${state.orig[d]||'休'}</span></div>
-                        <span style="font-size:10px;">${isSelected?'✅':'🔘'}</span>
+                    <div class="date-header" onclick="toggleDay('${d}')">
+                        <div><span class="date-num">${d.split('/')[1] || d}</span><span class="date-label">${d.split('/')[0]}月</span></div>
+                        <span class="orig-tag">原:${state.orig[d]||'休'}</span>
                     </div>
-                    ${isSelected ? `<span class="target-hint">正在搜 ${currentSearchTarget || '休'} 班...</span>` : `
-                        <select class="shift-select" onchange="state.simPrefix[${d}]=this.value; state.collapsedDays[${d}]=(this.value === (state.orig[${d}]?.charAt(0).toUpperCase() || 'D')); render();">
+                    ${isSelected ? `<span class="target-hint">搜 ${currentSearchTarget} 班...</span>` : `
+                        <select class="shift-select" onchange="state.simPrefix['${d}']=this.value; state.collapsedDays['${d}']=(this.value === (state.orig['${d}']?.charAt(0).toUpperCase() || 'D')); render();">
                             <option value="D" ${currentPrefix==='D'?'selected':''}>休</option>
-                            ${state.master[d] ? Object.keys(state.master[d]).sort().map(p => {
-                                if(p==='D') return '';
-                                return `<option value="${p}" ${p===currentPrefix?'selected':''}>${p} 班</option>`;
-                            }).join('') : ''}
+                            ${state.master[d] ? Object.keys(state.master[d]).sort().map(p => p==='D'?'':`<option value="${p}" ${p===currentPrefix?'selected':''}>${p} 班</option>`).join('') : ''}
                         </select>
                     `}
-                    <div class="names-list">${getSwapList(d, currentSearchTarget)}</div>
+                    <div class="names-list">${getSwapList(d, idx, currentSearchTarget)}</div>
                 </div>`;
             html += isTable ? `<td>${cardHtml}</td>` : cardHtml;
-        }
+        });
         area.innerHTML = isTable ? html + '</tr></tbody></table>' : html;
     }
 
-    function getSwapList(day, targetPrefix) {
+    function getSwapList(day, dayIdx, targetPrefix) {
         let candidates = [];
-        const normalizedTarget = (targetPrefix === "D" || !targetPrefix) ? "D" : targetPrefix;
+        const normTarget = (targetPrefix === "D" || !targetPrefix) ? "D" : targetPrefix;
 
-        if(normalizedTarget === "D") {
-            Object.keys(state.personal).forEach(n => { 
-                if(n !== state.userName && isOff(state.personal[n][day])) candidates.push({name:n, actual:state.personal[n][day]}); 
-            });
-        } else if(state.master[day] && state.master[day][normalizedTarget]) {
-            candidates = state.master[day][normalizedTarget].filter(i => i.name !== state.userName);
+        if(normTarget === "D") {
+            Object.keys(state.personal).forEach(n => { if(n !== state.userName && isOff(state.personal[n][day])) candidates.push({name:n, actual:state.personal[n][day]}); });
+        } else if(state.master[day] && state.master[day][normTarget]) {
+            candidates = state.master[day][normTarget].filter(i => i.name !== state.userName);
         }
         
         const activeDays = state.selectedDays.length > 0 ? state.selectedDays : (state.activeBatchDays.includes(day) ? state.activeBatchDays : [day]);
@@ -253,16 +247,16 @@
 
         const processed = candidates.map(item => {
             let hisSched = {...state.personal[item.name]}; hisSched[day] = state.orig[day];
-            const res = checkLegality(hisSched, day);
+            const res = checkLegality(hisSched, dayIdx);
             let isFullBatchMatch = false;
             
             if (activeDays.length > 1) {
                 isFullBatchMatch = activeDays.every(ad => {
                     const shift = (state.personal[item.name][ad] || "").toUpperCase();
                     const match = (activeTarget === "D") ? isOff(shift) : shift.startsWith(activeTarget.toUpperCase());
-                    let tempSched = {...state.personal[item.name]};
-                    tempSched[ad] = state.orig[ad];
-                    return match && !checkLegality(tempSched, ad).restErr;
+                    let temp = {...state.personal[item.name]}; temp[ad] = state.orig[ad];
+                    const adIdx = state.dayKeys.indexOf(ad);
+                    return match && !checkLegality(temp, adIdx).restErr;
                 });
             } else if (activeDays.length === 1 && targetPrefix !== (state.orig[day]?.charAt(0).toUpperCase() || "D")) {
                 isFullBatchMatch = !res.restErr;
@@ -272,42 +266,24 @@
 
         const heroes = processed.filter(c => c.isFullBatchMatch);
         const others = processed.filter(c => !c.isFullBatchMatch);
-        
-        const isSameAsOriginal = (targetPrefix === (state.orig[day]?.charAt(0).toUpperCase() || "D"));
-        const isCollapsed = isSameAsOriginal ? true : state.collapsedDays[day];
+        const isSame = (targetPrefix === (state.orig[day]?.charAt(0).toUpperCase() || "D"));
+        const isCollapsed = isSame ? true : state.collapsedDays[day];
 
-        let html = '';
-        if (isSameAsOriginal && !state.selectedDays.includes(day)) {
-            return `<button class="collapse-btn" style="background:#f9f9f9" onclick="state.collapsedDays[${day}]=false; render();">
-                        <span>顯示同班名單 (${candidates.length}人)</span>
-                    </button>`;
+        if (isSame && !state.selectedDays.includes(day)) {
+            return `<button class="collapse-btn" onclick="state.collapsedDays['${day}']=false; render();">顯示同班 (${candidates.length}人)</button>`;
         }
 
+        let html = '';
         heroes.forEach(c => {
-            html += `<div class="person-card ${c.res.restErr ? 'cannot-swap' : 'can-swap'} batch-hero">
-                <div style="display:flex; justify-content:space-between;">
-                    <span>🎯 ${c.name}</span>
-                    <span style="font-size:10px; color:#666;">${c.actual}</span>
-                </div>
-            </div>`;
+            html += `<div class="person-card ${c.res.restErr ? 'cannot-swap' : 'can-swap'} batch-hero">🎯 ${c.name} <small>${c.actual}</small></div>`;
         });
 
         if (others.length > 0) {
             if (isCollapsed) {
-                html += `<button class="collapse-btn" onclick="toggleCollapse(${day})">
-                    <span>${heroes.length > 0 ? '其他備選' : '展開名單'}</span>
-                    <span>(${others.length}人)</span>
-                </button>`;
+                html += `<button class="collapse-btn" onclick="state.collapsedDays['${day}']=false; render();">${heroes.length>0?'其他':'展開'} (${others.length}人)</button>`;
             } else {
-                html += `<button class="collapse-btn" onclick="toggleCollapse(${day})">▼ 收合</button>`;
-                others.forEach(c => {
-                    html += `<div class="person-card ${c.res.restErr ? 'cannot-swap' : 'can-swap'}">
-                        <div style="display:flex; justify-content:space-between;">
-                            <span>${c.name}</span>
-                            <span style="font-size:10px; color:#666;">${c.actual}</span>
-                        </div>
-                    </div>`;
-                });
+                html += `<button class="collapse-btn" onclick="state.collapsedDays['${day}']=true; render();">▼ 收合</button>`;
+                others.forEach(c => html += `<div class="person-card ${c.res.restErr?'cannot-swap':'can-swap'}">${c.name} <small>${c.actual}</small></div>`);
             }
         }
         return html;
