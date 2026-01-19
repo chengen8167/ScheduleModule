@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>班表模擬器 - 精確批次命中版</title>
+    <title>班表模擬器 - 智慧顯示版</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
         :root { --primary: #007AFF; --danger: #ff4d4f; --safe: #2e7d32; --bg: #f0f2f5; --selected: #fff9c4; }
@@ -70,7 +70,7 @@
             <div style="font-size: 12px; font-weight: bold; color: #856404;">批次搜尋目標：<span id="selectedDaysTxt"></span></div>
             <div class="row-group">
                 <select id="batchShiftTarget" class="shift-select" style="margin:0; flex:2; font-size:14px;" onchange="render()"></select>
-                <button onclick="applyBatch()" style="background:var(--safe); flex:1;">確認換班</button>
+                <button onclick="applyBatch()" style="background:var(--safe); flex:1;">套用換班</button>
                 <button onclick="clearSelection()" style="background:#6c757d; flex:1;">取消</button>
             </div>
         </div>
@@ -122,7 +122,8 @@
         state.activeBatchDays = [...state.selectedDays];
         state.activeBatchDays.forEach(d => {
             state.simPrefix[d] = state.activeBatchTarget;
-            state.collapsedDays[d] = true; // 套用後預設先縮起來，除非有命中
+            // 只要模擬班別跟原始班別不同，就應該顯示（不摺疊）
+            state.collapsedDays[d] = (state.simPrefix[d] === (state.orig[d]?.charAt(0).toUpperCase() || ""));
         });
         state.selectedDays = [];
         updateBatchBar();
@@ -176,8 +177,9 @@
         document.getElementById('displayUser').innerText = `👤 ${state.userName} (${state.year}/${state.month+1})`;
         for(let d=1; d<=31; d++) { 
             state.orig[d] = entry[d] || ""; 
-            state.simPrefix[d] = state.orig[d].charAt(0);
-            state.collapsedDays[d] = isOff(state.simPrefix[d]);
+            state.simPrefix[d] = state.orig[d].charAt(0).toUpperCase();
+            // 預設邏輯：原始班別與下拉選單（模擬班別）相同時，預設摺疊
+            state.collapsedDays[d] = true;
         }
         render();
     }
@@ -206,7 +208,7 @@
                         <span style="font-size:10px;">${isSelected?'✅':'🔘'}</span>
                     </div>
                     ${isSelected ? `<span class="target-hint">正在搜 ${currentSearchTarget || '休'} 班...</span>` : `
-                        <select class="shift-select" onchange="state.simPrefix[${d}]=this.value; state.collapsedDays[${d}]=isOff(this.value); render();">
+                        <select class="shift-select" onchange="state.simPrefix[${d}]=this.value; state.collapsedDays[${d}]=(this.value === (state.orig[${d}]?.charAt(0).toUpperCase() || '')); render();">
                             <option value="">休</option>
                             ${state.master[d] ? Object.keys(state.master[d]).sort().map(p => `<option value="${p}" ${p===currentPrefix?'selected':''}>${p} 班</option>`).join('') : ''}
                         </select>
@@ -225,41 +227,47 @@
         } else if(state.master[day] && state.master[day][targetPrefix]) {
             candidates = state.master[day][targetPrefix].filter(i => i.name !== state.userName);
         }
-        if(candidates.length === 0) return `<div style="color:#999; font-size:10px; padding:5px;">(無人)</div>`;
-
-        // 決定目前要拿來做批次檢核的「日期組」與「目標」
+        
+        // 取得當前有效的批次日期組
         const activeDays = state.selectedDays.length > 0 ? state.selectedDays : (state.activeBatchDays.includes(day) ? state.activeBatchDays : [day]);
         const activeTarget = state.selectedDays.length > 0 ? document.getElementById('batchShiftTarget').value : (state.activeBatchDays.includes(day) ? state.activeBatchTarget : targetPrefix);
 
         const processed = candidates.map(item => {
             let hisSched = {...state.personal[item.name]}; hisSched[day] = state.orig[day];
             const res = checkLegality(hisSched, day);
-            
-            // 精確整批符合檢核：只有當 activeDays 長度 > 1 且每一天都符合才算命中
             let isFullBatchMatch = false;
+            
+            // 嚴格整批命中檢核
             if (activeDays.length > 1) {
                 isFullBatchMatch = activeDays.every(ad => {
                     const shift = (state.personal[item.name][ad] || "").toUpperCase();
                     const match = activeTarget === "" ? isOff(shift) : shift.startsWith(activeTarget.toUpperCase());
-                    // 同時檢查他換了我的班後在每一天是否合法
                     let tempSched = {...state.personal[item.name]};
                     tempSched[ad] = state.orig[ad];
                     return match && !checkLegality(tempSched, ad).restErr;
                 });
-            } else if (activeDays.length === 1 && !isOff(targetPrefix)) {
-                // 單日且非休假，只要當天合法且符合目標即算命中 (為了單日搜尋方便)
+            } else if (activeDays.length === 1 && targetPrefix !== (state.orig[day]?.charAt(0).toUpperCase() || "")) {
                 isFullBatchMatch = !res.restErr;
             }
-            
             return { ...item, res, isFullBatchMatch };
         });
 
         const heroes = processed.filter(c => c.isFullBatchMatch);
         const others = processed.filter(c => !c.isFullBatchMatch);
-        const isCollapsed = state.collapsedDays[day];
+        
+        // 核心邏輯：若模擬班別與原始班別相同，強制摺疊所有人
+        const isSameAsOriginal = (targetPrefix === (state.orig[day]?.charAt(0).toUpperCase() || ""));
+        const isCollapsed = isSameAsOriginal ? true : state.collapsedDays[day];
 
         let html = '';
-        // 1. 優先顯示命中者 (🎯)
+        if (isSameAsOriginal && !state.selectedDays.includes(day)) {
+            // 與原班相同且未在選取中，只顯示「展開」按鈕
+            return `<button class="collapse-btn" style="background:#f9f9f9" onclick="state.collapsedDays[${day}]=false; render();">
+                        <span>顯示同班名單 (${candidates.length}人)</span>
+                    </button>`;
+        }
+
+        // 1. 顯示整批命中者 (🎯)
         heroes.forEach(c => {
             html += `<div class="person-card ${c.res.restErr ? 'cannot-swap' : 'can-swap'} batch-hero">
                 <div style="display:flex; justify-content:space-between;">
@@ -269,15 +277,15 @@
             </div>`;
         });
 
-        // 2. 備選名單 (一律摺疊)
+        // 2. 備選名單 (摺疊處理)
         if (others.length > 0) {
             if (isCollapsed) {
                 html += `<button class="collapse-btn" onclick="toggleCollapse(${day})">
-                    <span>${heroes.length > 0 ? '其他備選' : '展開備選名單'}</span>
+                    <span>${heroes.length > 0 ? '其他備選' : '展開名單'}</span>
                     <span>(${others.length}人)</span>
                 </button>`;
             } else {
-                html += `<button class="collapse-btn" onclick="toggleCollapse(${day})">▼ 收合備選</button>`;
+                html += `<button class="collapse-btn" onclick="toggleCollapse(${day})">▼ 收合</button>`;
                 others.forEach(c => {
                     html += `<div class="person-card ${c.res.restErr ? 'cannot-swap' : 'can-swap'}">
                         <div style="display:flex; justify-content:space-between;">
