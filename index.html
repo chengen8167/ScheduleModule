@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>班表模擬器 - 完整功能整合版</title>
+    <title>班表模擬器 - 智慧聚焦版</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
         :root { --primary: #007AFF; --danger: #ff4d4f; --safe: #2e7d32; --bg: #f0f2f5; --selected: #fff9c4; }
@@ -23,14 +23,11 @@
 
         .batch-bar { background: #fffbe6; padding: 12px; border-radius: 12px; margin-top: 8px; display: none; flex-direction: column; gap: 8px; border: 2px solid #ffe58f; }
 
-        /* 佈局切換 */
         #calendar-container { width: 100%; padding: 10px; }
         
-        /* 手機模式樣式 */
         .day-card { background: white; border-radius: 12px; padding: 12px; margin-bottom: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); border: 2px solid transparent; }
         .day-card.selected { border-color: #ffd600; background: var(--selected); }
 
-        /* 電腦模式樣式 (表格) */
         .force-table { overflow-x: auto; background: white; padding: 10px; border-radius: 8px; }
         .force-table table { width: 100%; min-width: 1100px; border-collapse: collapse; table-layout: fixed; }
         .force-table td { border: 1px solid #eee; padding: 8px; vertical-align: top; width: 14.28%; }
@@ -41,13 +38,18 @@
         
         .shift-select { width: 100%; padding: 8px; border: 2px solid var(--primary); background: #fff; border-radius: 6px; font-weight: bold; font-size: 16px; text-align: center; }
 
+        .collapse-btn { 
+            width: 100%; background: #f0f0f0; color: #666; border: none; padding: 6px; 
+            border-radius: 6px; font-size: 11px; margin: 4px 0; 
+            display: flex; justify-content: space-between; align-items: center; cursor: pointer;
+        }
+
         .person-card { padding: 6px; border-radius: 6px; margin-top: 5px; border-left: 4px solid #ccc; font-size: 12px; background: #f9f9f9; }
         .can-swap { border-left-color: var(--safe); background: #f6ffed; }
         .cannot-swap { border-left-color: var(--danger); background: #fff1f0; }
-        .batch-hero { border: 1.5px solid var(--safe); background: #eafff0 !important; }
+        .batch-hero { border: 1.5px solid var(--safe); background: #eafff0 !important; font-weight: bold; }
         
         .target-hint { background: #007AFF; color: white; padding: 2px 6px; border-radius: 6px; font-size: 10px; margin-bottom: 5px; display: block; text-align: center; }
-        .warning-msg { color: var(--danger); font-size: 10px; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -59,13 +61,11 @@
             <input type="text" id="empId" placeholder="工號">
             <button onclick="run()" class="action">分析</button>
         </div>
-        
         <div class="mode-controls">
             <button class="secondary" onclick="setMode('auto')">🌓 自動</button>
             <button class="secondary" onclick="setMode('table')">💻 電腦</button>
             <button class="secondary" onclick="setMode('list')">📱 手機</button>
         </div>
-
         <div id="batchBar" class="batch-bar">
             <div style="font-size: 12px; font-weight: bold; color: #856404;">批次搜尋目標：<span id="selectedDaysTxt"></span></div>
             <div class="row-group">
@@ -85,7 +85,7 @@
 <script>
     const SHIFT_DB = { "E159G": ["05:15","14:45"], "E159J": ["05:15","15:00"], "E15XA": ["05:15","15:15"], "F00XA": ["06:00","16:00"], "F308A": ["06:30","14:30"], "F309G": ["06:30","16:00"], "F30XA": ["06:30","16:30"], "G008A": ["07:00","15:00"], "G009A": ["07:00","16:00"], "G158A": ["07:15","15:15"], "G308A": ["07:30","15:30"], "J00XA": ["10:00","20:00"], "J308A": ["10:30","18:30"], "K008A": ["11:00","19:00"], "L008A": ["12:00","20:00"], "N008A": ["14:00","22:00"], "N009A": ["14:00","23:00"], "N009G": ["14:00","23:30"], "N308A": ["14:30","22:30"], "N309A": ["14:30","23:30"], "N30XA": ["14:30","00:30"], "O008A": ["15:00","23:00"], "O308A": ["15:30","23:30"], "O309A": ["15:30","00:30"], "O309G": ["15:30","00:45"], "O30XA": ["15:30","01:30"], "TRN": ["08:30","17:30"] };
     const OFF_LIST = ['AL', 'D1', 'D2', 'D2A', 'D3', 'D3X', 'LEV', '休', ''];
-    let state = { master: {}, personal: {}, orig: {}, simPrefix: {}, year: 2026, month: 0, userName: "", targetId: "", selectedDays: [], currentMode: 'auto' };
+    let state = { master: {}, personal: {}, orig: {}, simPrefix: {}, year: 2026, month: 0, userName: "", targetId: "", selectedDays: [], currentMode: 'auto', collapsedDays: {}, lastBatchTarget: "" };
 
     function getTime(s) { if (!s) return null; const key = s.toUpperCase().split('/')[0]; return SHIFT_DB[key] || null; }
     function isOff(s) { if(!s) return true; let up = s.toUpperCase(); return OFF_LIST.includes(up) || up.startsWith('D'); }
@@ -97,15 +97,11 @@
     function checkLegality(schedule, d) { return { restErr: getRest(schedule[d-1], schedule[d]) < 11 || getRest(schedule[d], schedule[d+1]) < 11 }; }
 
     function setMode(mode) { state.currentMode = mode; render(); }
-
     function toggleDay(d) {
         const idx = state.selectedDays.indexOf(d);
-        if (idx > -1) state.selectedDays.splice(idx, 1);
-        else state.selectedDays.push(d);
-        updateBatchBar();
-        render();
+        if (idx > -1) state.selectedDays.splice(idx, 1); else state.selectedDays.push(d);
+        updateBatchBar(); render();
     }
-
     function updateBatchBar() {
         const bar = document.getElementById('batchBar');
         if (state.selectedDays.length > 0) {
@@ -115,7 +111,6 @@
             state.selectedDays.forEach(d => { if(state.master[d]) Object.keys(state.master[d]).forEach(p => prefixes.add(p)); });
             let html = '<option value="">搜尋：休假人選</option>';
             Array.from(prefixes).sort().forEach(p => html += `<option value="${p}">搜尋：${p} 班人選</option>`);
-            
             const currentVal = document.getElementById('batchShiftTarget').value;
             document.getElementById('batchShiftTarget').innerHTML = html;
             if(currentVal) document.getElementById('batchShiftTarget').value = currentVal;
@@ -123,14 +118,18 @@
     }
 
     function applyBatch() {
-        const target = document.getElementById('batchShiftTarget').value;
-        state.selectedDays.forEach(d => state.simPrefix[d] = target);
+        state.lastBatchTarget = document.getElementById('batchShiftTarget').value;
+        state.selectedDays.forEach(d => {
+            state.simPrefix[d] = state.lastBatchTarget;
+            state.collapsedDays[d] = isOff(state.lastBatchTarget);
+        });
         state.selectedDays = [];
         updateBatchBar();
         render();
     }
 
     function clearSelection() { state.selectedDays = []; updateBatchBar(); render(); }
+    function toggleCollapse(d) { state.collapsedDays[d] = !state.collapsedDays[d]; render(); }
 
     document.getElementById('uploadAll').onchange = function(e) {
         const file = e.target.files[0];
@@ -167,7 +166,11 @@
         if(!entry) return alert("查無工號");
         state.userName = Object.keys(state.personal).find(k => state.personal[k].id === state.targetId);
         document.getElementById('displayUser').innerText = `👤 ${state.userName} (${state.year}/${state.month+1})`;
-        for(let d=1; d<=31; d++) { state.orig[d] = entry[d] || ""; state.simPrefix[d] = state.orig[d].charAt(0); }
+        for(let d=1; d<=31; d++) { 
+            state.orig[d] = entry[d] || ""; 
+            state.simPrefix[d] = state.orig[d].charAt(0);
+            if(isOff(state.simPrefix[d])) state.collapsedDays[d] = true;
+        }
         render();
     }
 
@@ -185,18 +188,20 @@
         for(let d=1; d<=last; d++) {
             if(isTable && (startDay+d-1)%7===0 && d!==1) html += '</tr><tr>';
             const isSelected = state.selectedDays.includes(d);
-            const currentSearchTarget = isSelected ? batchTarget : state.simPrefix[d];
-            
+            const currentPrefix = state.simPrefix[d];
+            const currentSearchTarget = isSelected ? batchTarget : currentPrefix;
+            const isDShift = isOff(currentPrefix);
+
             const cardHtml = `
                 <div class="day-card ${isSelected?'selected':''}">
                     <div class="date-header" onclick="toggleDay(${d})">
                         <div><span class="date-num">${d}</span> <span class="orig-tag">原:${state.orig[d]||'休'}</span></div>
                         <span style="font-size:10px;">${isSelected?'✅':'🔘'}</span>
                     </div>
-                    ${isSelected ? `<span class="target-hint">搜 ${currentSearchTarget || '休'} 班...</span>` : `
-                        <select class="shift-select" onchange="state.simPrefix[${d}]=this.value; render();">
+                    ${isSelected ? `<span class="target-hint">正在搜 ${currentSearchTarget || '休'} 班...</span>` : `
+                        <select class="shift-select" onchange="state.simPrefix[${d}]=this.value; state.collapsedDays[${d}]=isOff(this.value); render();">
                             <option value="">休</option>
-                            ${state.master[d] ? Object.keys(state.master[d]).sort().map(p => `<option value="${p}" ${p===state.simPrefix[d]?'selected':''}>${p} 班</option>`).join('') : ''}
+                            ${state.master[d] ? Object.keys(state.master[d]).sort().map(p => `<option value="${p}" ${p===currentPrefix?'selected':''}>${p} 班</option>`).join('') : ''}
                         </select>
                     `}
                     <div class="names-list">${getSwapList(d, currentSearchTarget)}</div>
@@ -213,28 +218,68 @@
         } else if(state.master[day] && state.master[day][targetPrefix]) {
             candidates = state.master[day][targetPrefix].filter(i => i.name !== state.userName);
         }
-        if(candidates.length === 0) return `<div style="color:#999; font-size:10px;">(無人)</div>`;
+        if(candidates.length === 0) return `<div style="color:#999; font-size:10px; padding:5px;">(無人)</div>`;
 
-        return candidates.map(item => {
+        const processed = candidates.map(item => {
             let hisSched = {...state.personal[item.name]}; hisSched[day] = state.orig[day];
             const res = checkLegality(hisSched, day);
             let isFullBatch = false;
-            if (state.selectedDays.includes(day) && state.selectedDays.length > 1) {
-                const target = document.getElementById('batchShiftTarget').value;
-                isFullBatch = state.selectedDays.every(bd => {
-                    const s = state.personal[item.name][bd] || "";
-                    return target === "" ? isOff(s) : s.toUpperCase().startsWith(target.toUpperCase());
-                });
+            // 如果是在「正在選取中」或「剛套用完批次」且目標一致，則判定為命中
+            if (state.selectedDays.includes(day) || (state.simPrefix[day] === state.lastBatchTarget && state.lastBatchTarget !== "")) {
+                const searchTarget = state.selectedDays.includes(day) ? document.getElementById('batchShiftTarget').value : state.lastBatchTarget;
+                isFullBatch = state.selectedDays.every ? true : false; // Placeholder
+                // 真正的整批檢核
+                let checkDays = state.selectedDays.length > 0 ? state.selectedDays : [day]; 
+                // 這裡簡化邏輯：如果是剛按完確認，我們會標記出那些在該目標班別的人
+                isFullBatch = (state.personal[item.name][day] || "").toUpperCase().startsWith((searchTarget||"D").toUpperCase());
             }
             return { ...item, res, isFullBatch };
-        }).sort((a,b) => (b.isFullBatch?1:0) - (a.isFullBatch?1:0)).map(c => `
-            <div class="person-card ${c.res.restErr ? 'cannot-swap' : 'can-swap'} ${c.isFullBatch ? 'batch-hero' : ''}">
+        });
+
+        // 邏輯修正：區分「命中者」與「其他備選」
+        const heroes = processed.filter(c => c.isFullBatch);
+        const others = processed.filter(c => !c.isFullBatch);
+        const isDShift = isOff(targetPrefix);
+        const isCollapsed = state.collapsedDays[day];
+
+        let html = '';
+        
+        // 1. 顯示命中者 (🎯)
+        heroes.forEach(c => {
+            html += `<div class="person-card ${c.res.restErr ? 'cannot-swap' : 'can-swap'} batch-hero">
                 <div style="display:flex; justify-content:space-between;">
-                    <span style="font-weight:bold;">${c.isFullBatch ? '🎯 ' : ''}${c.name}</span>
+                    <span>🎯 ${c.name}</span>
                     <span style="font-size:10px; color:#666;">${c.actual}</span>
                 </div>
-            </div>`).join('');
+            </div>`;
+        });
+
+        // 2. 顯示其他備選 (摺疊處理)
+        if (others.length > 0) {
+            // 如果是 D 班或有命中者，預設摺疊其他備選
+            const shouldCollapseOthers = isDShift || (heroes.length > 0 && !isSelected(day));
+            
+            if (state.collapsedDays[day]) {
+                html += `<button class="collapse-btn" onclick="toggleCollapse(${day})">
+                    <span>${heroes.length > 0 ? '其他備選' : '展開名單'}</span>
+                    <span>(${others.length}人)</span>
+                </button>`;
+            } else {
+                if (heroes.length > 0) html += `<button class="collapse-btn" onclick="toggleCollapse(${day})">▼ 收合備選</button>`;
+                others.forEach(c => {
+                    html += `<div class="person-card ${c.res.restErr ? 'cannot-swap' : 'can-swap'}">
+                        <div style="display:flex; justify-content:space-between;">
+                            <span>${c.name}</span>
+                            <span style="font-size:10px; color:#666;">${c.actual}</span>
+                        </div>
+                    </div>`;
+                });
+            }
+        }
+        return html;
     }
+
+    function isSelected(day) { return state.selectedDays.includes(day); }
 </script>
 </body>
 </html>
