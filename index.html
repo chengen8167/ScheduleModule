@@ -3,51 +3,56 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>班表小幫手 - v3.10.1 Full Features</title>
+    <title>班表小幫手 - v3.10.2 Summary & Color Fix</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
     <style>
         :root { --primary: #007AFF; --danger: #ff4d4f; --safe: #2e7d32; --bg: #f0f2f5; --selected: #fff9c4; --gold: #d4a017; --white: #ffffff; }
         * { box-sizing: border-box; font-family: -apple-system, sans-serif; }
-        body { margin: 0; background: var(--bg); font-size: 14px; padding-bottom: 250px; }
+        body { margin: 0; background: var(--bg); font-size: 14px; padding-bottom: 300px; }
         
-        /* 配置區固定在頂部 */
+        /* 配置區 */
         .config-box { background: var(--white); padding: 12px; border-bottom: 1px solid #ddd; position: sticky; top: 0; z-index: 1000; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
-        .row-group { display: flex; gap: 10px; align-items: center; margin-bottom: 8px; flex-wrap: nowrap; }
+        .row-group { display: flex; gap: 10px; align-items: center; margin-bottom: 8px; }
         
-        /* 重新補回的手機/電腦切換開關 */
+        /* 電腦/手機切換 */
         .switch-container { flex-shrink: 0; display: flex; align-items: center; gap: 4px; background: #eee; padding: 4px; border-radius: 20px; cursor: pointer; position: relative; width: 80px; height: 32px; user-select: none; }
         .switch-label { flex: 1; text-align: center; z-index: 2; font-size: 14px; }
         .switch-slider { position: absolute; width: 36px; height: 26px; background: var(--white); border-radius: 18px; top: 3px; left: 3px; transition: 0.3s; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
         .mode-mobile .switch-slider { left: 41px; }
 
-        /* 行事曆區域 */
+        /* 行事曆 */
         #calendarArea { display: grid; gap: 8px; padding: 8px; }
         .mode-pc { grid-template-columns: repeat(7, 1fr); }
         .mode-mobile { grid-template-columns: 1fr; }
         
-        /* 卡片與名單分群 */
-        .day-card { background: var(--white); border-radius: 10px; padding: 10px; border: 2px solid transparent; min-height: 80px; transition: 0.2s; cursor: pointer; }
+        /* 卡片與名單 */
+        .day-card { background: var(--white); border-radius: 10px; padding: 10px; border: 2px solid transparent; min-height: 80px; cursor: pointer; }
         .day-card.selected { border-color: var(--gold); background: var(--selected); }
         .date-label { display: flex; justify-content: space-between; font-weight: 800; border-bottom: 1px solid #eee; padding-bottom: 5px; }
         
         .group-header { font-size: 10px; color: #999; margin: 8px 0 2px 2px; border-top: 1px dashed #eee; padding-top: 4px; font-weight: bold; }
         .person-item { padding: 6px 8px; border-radius: 4px; margin-top: 4px; font-size: 12px; border-left: 3px solid #ccc; background: #f9f9f9; display: flex; flex-direction: column; }
+        
+        /* 名字顏色：恢復原本讀取顏色，不再強制白色 */
+        .colored-name { font-weight: 900; } 
+        
         .perfect-match { border-left-color: var(--gold); background: #fffdf0; font-weight: bold; border-left-width: 5px; cursor: pointer; }
         .perfect-match.target-selected { background: #fff3cd; border: 2px solid var(--gold); }
-        .colored-name { font-weight: 900; } 
         .error-tag { font-size: 9px; background: #fff1f0; color: #cf1322; padding: 1px 4px; border-radius: 3px; border: 1px solid #ffa39e; margin-right: 2px; display: inline-block; }
 
-        /* 批量操作面板 */
+        /* 批量操作面板（置底固定） */
         .batch-panel { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); width: 95%; max-width: 500px; background: rgba(255, 251, 230, 0.98); backdrop-filter: blur(12px); padding: 15px; border-radius: 16px; border: 2px solid #ffe58f; box-shadow: 0 -4px 25px rgba(0,0,0,0.18); z-index: 2000; display: none; }
-        .summary-box { background: #fff; border-radius: 8px; padding: 10px; margin-top: 10px; font-size: 12px; border: 1px solid #ddd; max-height: 120px; overflow-y: auto; white-space: pre-wrap; color: #333; }
-        .btn-execute { background: var(--danger); color: white; border: none; padding: 12px; border-radius: 8px; font-weight: 900; font-size: 16px; cursor: pointer; width: 100%; margin-top: 10px; }
+        
+        /* 恢復獨立版面的摘要區 */
+        .standalone-summary { background: #fff; border-radius: 12px; padding: 15px; margin: 15px 8px; border: 2px solid var(--primary); box-shadow: 0 4px 12px rgba(0,0,0,0.1); display: none; }
+        .summary-content { white-space: pre-wrap; font-family: monospace; font-size: 13px; color: #333; margin-top: 10px; padding: 10px; background: #f8f9fa; border-radius: 6px; }
     </style>
 </head>
 <body class="mode-pc">
 
 <div class="config-box">
     <div class="row-group">
-        <strong style="color:var(--primary); white-space: nowrap;">班表小幫手 v3.10.1</strong>
+        <strong style="color:var(--primary);">班表小幫手 v3.10.2</strong>
         <div class="switch-container" onclick="toggleMode()">
             <div class="switch-slider"></div>
             <div class="switch-label">💻</div>
@@ -56,20 +61,26 @@
     </div>
     <div class="row-group">
         <input type="file" id="xlsxIn" accept=".xlsx" style="flex:1;">
-        <input type="text" id="targetId" value="A022994" style="width:80px; text-align:center;" placeholder="工號">
+        <input type="text" id="targetId" value="A022994" style="width:80px; text-align:center;">
         <button onclick="initData()" id="btnAnalyze" style="background:var(--safe); color:white; border:none; padding:8px 15px; border-radius:8px; font-weight:bold; cursor:pointer;">分析</button>
     </div>
 </div>
 
+<div id="standaloneSummary" class="standalone-summary">
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+        <strong style="color:var(--primary); font-size:16px;">📋 異動摘要</strong>
+        <button onclick="copySummary()" style="background:var(--primary); color:white; border:none; padding:5px 12px; border-radius:6px; font-weight:bold; cursor:pointer;">複製訊息</button>
+    </div>
+    <div id="summaryText" class="summary-content">請點選下方 ✨ 完美匹配的人選...</div>
+</div>
+
 <div id="batchPanel" class="batch-panel">
     <div style="display:flex; justify-content:space-between; align-items:center;">
-        <span style="font-weight:bold;">📅 批量換班設定 (<span id="selCount">0</span>天)</span>
+        <span style="font-weight:bold;">📅 批量換班 (<span id="selCount">0</span>天)</span>
         <button onclick="closePanel()" style="background:none; border:none; font-size:24px; cursor:pointer;">&times;</button>
     </div>
     <select id="shiftSel" onchange="renderUI()" style="width:100%; padding:10px; margin-top:10px; border-radius:8px; border:2px solid var(--primary); font-weight:bold;"></select>
     <div id="selectedTargetDisplay" style="font-weight:bold; color:var(--danger); margin-top: 10px; font-size:14px;">請選擇完美匹配(✨)的人選</div>
-    <div id="changeSummary" class="summary-box"></div>
-    <button class="btn-execute" onclick="executeBatch()">確認並複製訊息</button>
 </div>
 
 <div id="calendarArea" class="mode-pc"></div>
@@ -90,12 +101,7 @@
 
     function toM(t) { if(!t) return 0; const [h, m] = t.split(':').map(Number); return h * 60 + m; }
     function cleanShift(txt) { return String(txt || "").replace(/[\r\n]+/g, "").split('/')[0].split('@')[0].trim(); }
-    function getCellVal(c) { 
-        if (!c) return "";
-        let v = c.value;
-        if (v && typeof v === 'object' && v.text) return String(v.text).trim();
-        return String(v || "").trim();
-    }
+    function getCellVal(c) { return (c && (c.value?.text || c.value)) ? String(c.value.text || c.value).trim() : ""; }
 
     function isConflicting(preTxt, curTxt) {
         const pClean = cleanShift(preTxt), cClean = cleanShift(curTxt);
@@ -106,9 +112,8 @@
     }
 
     async function initData() {
-        const f = document.getElementById('xlsxIn').files[0]; if(!f) return alert("請選擇檔案");
-        const btn = document.getElementById('btnAnalyze');
-        btn.innerText = "讀取中...";
+        const f = document.getElementById('xlsxIn').files[0]; if(!f) return;
+        const btn = document.getElementById('btnAnalyze'); btn.innerText = "讀取中...";
         try {
             const workbook = new ExcelJS.Workbook(); await workbook.xlsx.load(await f.arrayBuffer());
             const worksheet = workbook.getWorksheet(1);
@@ -122,7 +127,8 @@
                 if (rowNum <= hIdx) return;
                 const nameCell = row.getCell(3), name = getCellVal(nameCell), id = getCellVal(row.getCell(2)).toUpperCase();
                 if (!id || id.includes("總計")) return;
-                if (nameCell.fill?.fgColor?.argb && EXCLUDE_HEX.includes(nameCell.fill.fgColor.argb.slice(-6).toUpperCase())) return;
+                const argb = nameCell.fill?.fgColor?.argb;
+                if (argb && EXCLUDE_HEX.includes(argb.slice(-6).toUpperCase())) return;
 
                 state.personal[name] = { id, schedule: {} };
                 state.dayKeys.forEach(dk => {
@@ -133,16 +139,14 @@
                     };
                 });
             });
-            renderUI();
-            btn.innerText = "分析完成";
-        } catch(e) { alert("讀取失敗"); btn.innerText = "重新分析"; }
+            renderUI(); btn.innerText = "分析完成";
+        } catch(e) { btn.innerText = "分析失敗"; }
     }
 
     function renderUI() {
         const area = document.getElementById('calendarArea'), labels = state.dayKeys.map(k => k.label);
         const myName = Object.keys(state.personal).find(n => state.personal[n].id === document.getElementById('targetId').value.toUpperCase());
-        if(!myName || labels.length === 0) return;
-
+        if(!myName) return;
         const filterVal = document.getElementById('shiftSel')?.value || "";
 
         area.innerHTML = labels.map(d => {
@@ -164,8 +168,9 @@
                 });
 
                 const isPerf = isSel && errors.length === 0;
+                // 這裡修復名字顏色，確保使用讀取的 hex
                 const item = `<div class="person-item ${isPerf?'perfect-match':''} ${state.chosenTarget===n?'target-selected':''}" onclick="event.stopPropagation(); selectTargetPerson('${n}', ${isPerf})">
-                    <div style="display:flex;justify-content:space-between;"><span class="colored-name" style="color:#${cS.hex}">${n} <small>(${hisBase})</small></span>${isPerf?'✨':''}</div>
+                    <div style="display:flex;justify-content:space-between;"><span class="colored-name" style="color:#${cS.hex} !important;">${n} <small>(${hisBase})</small></span>${isPerf?'✨':''}</div>
                     ${isSel && !isPerf && errors.length ? `<div>${[...new Set(errors)].map(e=>`<span class="error-tag">${e}</span>`).join('')}</div>`:''}
                 </div>`;
                 if (isPerf) perfH += item; else { if(state.expanded[d]) conflictH += item; othersCount++; }
@@ -185,14 +190,18 @@
         if(state.selectedDays.includes(d)) state.selectedDays = state.selectedDays.filter(x=>x!==d);
         else state.selectedDays.push(d);
         state.selectedDays.sort((a,b)=>state.dayKeys.findIndex(k=>k.label===a)-state.dayKeys.findIndex(k=>k.label===b));
-        document.getElementById('batchPanel').style.display = state.selectedDays.length ? 'block' : 'none';
+        
+        const hasSelected = state.selectedDays.length > 0;
+        document.getElementById('batchPanel').style.display = hasSelected ? 'block' : 'none';
+        document.getElementById('standaloneSummary').style.display = hasSelected ? 'block' : 'none';
         document.getElementById('selCount').innerText = state.selectedDays.length;
-        if(state.selectedDays.length) {
+
+        if(hasSelected) {
             let sets = new Set();
             state.selectedDays.forEach(day => Object.values(state.personal).forEach(p => { 
                 const b = cleanShift(p.schedule[day]?.text); if(/^[A-Z]/.test(b)) sets.add(b.charAt(0));
             }));
-            let opt = '<option value="">(自動篩選同班別)</option>';
+            let opt = '<option value="">(篩選班別)</option>';
             Array.from(sets).sort().forEach(p => opt += `<option value="${p}">${p} 班</option>`);
             document.getElementById('shiftSel').innerHTML = opt;
         }
@@ -200,29 +209,32 @@
     }
 
     function selectTargetPerson(n, isPerf) {
-        if(!isPerf) { alert("此人選在選定日期有休息不足衝突。"); return; }
+        if(!isPerf) { alert("此人選有衝突。"); return; }
         state.chosenTarget = n;
         document.getElementById('selectedTargetDisplay').innerText = `已選定：${n} ✨`;
-        updateSummary();
         renderUI();
     }
 
     function updateSummary() {
-        if(!state.chosenTarget || !state.selectedDays.length) return;
+        const summaryBox = document.getElementById('summaryText');
+        if(!state.chosenTarget || !state.selectedDays.length) {
+            summaryBox.innerText = "請點選下方 ✨ 完美匹配的人選以生成摘要...";
+            return;
+        }
         const myName = Object.keys(state.personal).find(n => state.personal[n].id === document.getElementById('targetId').value.toUpperCase());
-        let text = `【換班摘要】\n對象：${state.chosenTarget}\n日期：\n`;
+        let text = `【換班摘要】\n對象：${state.chosenTarget}\n日期明細：\n`;
         state.selectedDays.forEach(d => {
             const myS = state.personal[myName].schedule[d].text.split('\n')[0];
             const hisS = state.personal[state.chosenTarget].schedule[d].text.split('\n')[0];
-            text += `  ● ${d}：${hisS} ↔️ ${myS}\n`;
+            text += `📅 ${d}：${hisS} ↔️ ${myS}\n`;
         });
-        document.getElementById('changeSummary').innerText = text;
+        summaryBox.innerText = text;
     }
 
-    function executeBatch() {
-        const summary = document.getElementById('changeSummary').innerText;
-        if(!summary) return alert("請先選擇換班對象");
-        navigator.clipboard.writeText(summary).then(() => alert("摘要已複製！"));
+    function copySummary() {
+        const txt = document.getElementById('summaryText').innerText;
+        if(txt.includes("請點選")) return alert("尚未選擇對象");
+        navigator.clipboard.writeText(txt).then(() => alert("摘要已複製到剪貼簿！"));
     }
 
     function toggleMode() { 
@@ -231,7 +243,7 @@
         document.getElementById('calendarArea').className = `mode-${state.mode}`; 
         renderUI(); 
     }
-    function closePanel() { state.selectedDays=[]; state.chosenTarget=null; document.getElementById('batchPanel').style.display='none'; renderUI(); }
+    function closePanel() { state.selectedDays=[]; state.chosenTarget=null; document.getElementById('batchPanel').style.display='none'; document.getElementById('standaloneSummary').style.display='none'; renderUI(); }
 </script>
 </body>
 </html>
