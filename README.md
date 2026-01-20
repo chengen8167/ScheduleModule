@@ -1,45 +1,37 @@
-# 📅 班表模擬器 (Roster Simulator)
+# 🚀 Release Notes - Shift Simulator
 
-這是一個專為排班人員設計的輕量化 Web 工具，支援自動讀取 Excel 班表、檢測 11 小時休息時間，並提供智慧對調建議。
+### [v3.6.5] - 2026-01-20
+**Final Stable Milestone**
+- **Added**: Auto-formatting for messaging. Implemented "Last Two Names" logic to strip family names for a more friendly/casual tone (e.g., "John Doe" becomes "Doe").
+- **Improved**: Polished the LINE message template to match the user's specific request for a professional yet approachable swap invitation.
+- **Fixed**: Guaranteed strict preservation of all core logic (rest-time checks, color protection) across updates.
 
----
+### [v3.6.4] - 2026-01-20
+**Connectivity Update**
+- **Added**: Integrated **Web Share API** & **LINE URL Scheme** bridge.
+- **Added**: A "💬 Notify" button in the Modification Summary for instant coordination.
+- **Improved**: Automatic message generation including Date, Shift Type, and "From <-> To" details to eliminate manual typing.
 
-## 📑 改版紀錄 (Release Notes)
+### [v3.6.3] - 2025-11-09
+**Personalization & Identity**
+- **Added**: Dynamic Header title. The "Modification Summary" now automatically incorporates the user's real name based on the Employee ID entered.
+- **Improved**: Enhanced UI stability for mobile and desktop switching.
 
-### 🚀 v3.0 - 2026-01-20
-* **顏色預設邏輯優化**：新增判定機制，若 Excel 儲存格為「無填滿」，網頁人名將自動預設為黑色 (`#000000`)。
-* **渲染校正**：修正部分 Excel 版本中「主題色 (Theme Color)」可能導致顏色抓取失敗的問題。
-* **視覺強化**：微調文字陰影，兼顧淺色填色文字的可讀性與純黑文字的清晰度。
+### [v3.6.2] - 2025-11-09
+**The Efficiency Update**
+- **Added**: **Batch Modification Panel**. Users can now select multiple days and swap them with a single colleague in one click.
+- **Improved**: Expanded the "Shift Selection" filter, allowing users to find colleagues by specific shift prefixes (e.g., showing all "E" shifts).
+- **Improved**: Modification Summary logic to group all changes by colleague for better clarity.
 
-### 🎨 v2.9 - 2026-01-20
-* **引擎更新**：全面捨棄 SheetJS (xlsx.js)，改採 **ExcelJS** 引擎，解決開源版無法讀取樣式的限制。
-* **顏色讀取功能**：實現讀取 Excel 儲存格「填滿顏色」並同步顯示於人名，滿足班別外的人員分類需求。
-* **相容性強化**：新增 `getCellVal` 邏輯，穩定處理 Excel 中的日期、公式與 RichText 物件，防止解析崩潰。
-* **自動偵錯系統**：導入標題列自動掃描機制與 `Try-Catch` 報錯視窗。
+### [v3.6.1] - 2025-07-07
+**Core Guardrails & Logic**
+- **Added**: **Rest-Time Check (11-hour Rule)**. The system now automatically flags illegal swaps that violate minimum rest requirements between shifts.
+- **Added**: **Role Protection**. Implemented color-based filtering (e.g., Yellow/Blue tags) to prevent swapping between different job roles (e.g., Ground vs. Flight crew).
+- **Added**: Collapsible lists for non-perfect matches to reduce visual clutter on mobile devices.
 
-### ⚖️ v2.5 - v2.6 - 2026-01-20
-* **嚴格交集檢核**：連續選取多日對調時，系統僅會顯示「每一天皆符合資格」的全方位人選。
-* **安全邊界檢查**：首創對調區間的 `n-1` 與 `n+1` 休息時間檢核，確保對調後不與前後日班表衝突。
-* **原因透明化**：在「其餘人選」清單中明確標示「不符原因」與「原始班別」。
-
-### 📱 v2.0 - 2026-01-20
-* **批次對調功能**：新增多日連續區間一次性對調邏輯。
-* **目標班別選單**：允許使用者指定想換成的目標班別（如指定換成 G 班）。
-* **UI 響應式優化**：新增 PC/Mobile 視角切換與「✨金星」推薦標記。
-
-### 🏗️ v1.0 - 2025-11-09
-* **核心開發**：建立基礎 Excel 解析功能與 11 小時休息時間計算法。
-* **介面建立**：實現日曆卡片式佈局與單日對調建議功能。
-
----
-
-## 🛠️ 技術棧
-* **Frontend**: HTML5, CSS3, JavaScript (ES6+)
-* **Library**: [ExcelJS](https://github.com/exceljs/exceljs)
-* **Logic**: 11-hour rest rule validation
-
-## 📝 使用說明
-1.  上傳包含「員工編號」、「員工姓名」及日期欄位的 `.xlsx` 班表。
-2.  輸入您的員工編號進行鎖定。
-3.  點擊日曆卡片選取欲對調的日期。
-4.  系統將自動標記出符合勞基法（休息足夠）且班別相符的人選。
+### [v3.6.0] - 2025-04-22
+**Initial Interactive Build**
+- **Added**: Excel (`.xlsx`) parsing engine using `ExcelJS`.
+- **Added**: Interactive Calendar UI with "Perfect Match" (✨) highlighting.
+- **Added**: Real-time modification logs and shift swap simulation.
+- **Added**: Basic Mobile/PC responsive layout toggle.
