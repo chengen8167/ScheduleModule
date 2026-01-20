@@ -3,158 +3,229 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>班表模擬器 - 身分排除專業版</title>
+    <title>班表模擬器 - 錯誤原因明細版</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
-        :root { --primary: #007AFF; --danger: #ff4d4f; --safe: #2e7d32; --bg: #f0f2f5; --selected: #fff9c4; }
-        body { font-family: -apple-system, sans-serif; margin: 0; background: var(--bg); font-size: 14px; }
-        .config-box { background: #fff; padding: 12px; border-bottom: 1px solid #ddd; position: sticky; top: 0; z-index: 1000; }
-        .row-group { display: flex; gap: 8px; align-items: center; }
-        .file-input-wrapper { background: #f8f9fa; padding: 8px; border-radius: 8px; border: 1px dashed #ccc; flex: 1; font-size: 12px; }
-        input[type="text"] { width: 100px; padding: 8px; border: 1px solid #ccc; border-radius: 8px; text-align: center; font-weight: bold; }
-        button { background: var(--primary); color: white; border: none; padding: 10px; border-radius: 8px; font-weight: bold; cursor: pointer; }
-        
-        #calendar-container { padding: 10px; }
-        .day-card { background: white; border-radius: 12px; padding: 12px; margin-bottom: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
-        .shift-select { width: 100%; padding: 8px; border: 2px solid var(--primary); border-radius: 6px; font-size: 16px; text-align: center; margin: 8px 0; }
-        
-        .person-card { padding: 8px; border-radius: 6px; margin-top: 5px; font-size: 12px; background: #f9f9f9; border-left: 4px solid #ccc; }
-        .can-swap { border-left-color: var(--safe); background: #f6ffed; }
-        .forbidden { border-left-color: #d9d9d9; opacity: 0.5; background: #fafafa; } /* 排除特定顏色 */
-
-        .status-badge { font-size: 10px; padding: 1px 4px; border-radius: 4px; margin-left: 5px; }
-        .badge-yellow { background: #ffeb3b; color: #000; }
-        .badge-pink { background: #f48fb1; color: #fff; }
-        .badge-blue { background: #1e88e5; color: #fff; }
-        .badge-safe { background: #e8f5e9; color: #2e7d32; border: 1px solid #c8e6c9; }
+        :root { --primary: #007AFF; --danger: #ff4d4f; --safe: #2e7d32; --bg: #f0f2f5; --selected: #fff9c4; --gold: #d4a017; }
+        * { box-sizing: border-box; font-family: -apple-system, sans-serif; }
+        body { margin: 0; background: var(--bg); font-size: 14px; }
+        .config-box { background: #fff; padding: 12px; border-bottom: 1px solid #ddd; position: sticky; top: 0; z-index: 1000; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .row-group { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; }
+        .batch-panel { background: #fffbe6; padding: 15px; border-radius: 12px; border: 2px solid #ffe58f; margin-bottom: 10px; display: none; }
+        .btn-execute { background: var(--danger); color: white; border: none; padding: 12px; border-radius: 8px; font-weight: 900; font-size: 16px; cursor: pointer; width: 100%; margin-top: 10px; }
+        #calendarArea { display: grid; gap: 8px; padding: 8px; }
+        .mode-pc { grid-template-columns: repeat(7, 1fr); }
+        .mode-mobile { grid-template-columns: 1fr; }
+        .day-card { background: white; border-radius: 10px; padding: 10px; border: 2px solid transparent; min-height: 80px; transition: 0.2s; cursor: pointer; }
+        .day-card.selected { border-color: var(--gold); background: var(--selected); }
+        .date-label { display: flex; justify-content: space-between; font-weight: 800; border-bottom: 1px solid #eee; padding-bottom: 5px; }
+        .person-item { padding: 6px 8px; border-radius: 4px; margin-top: 4px; font-size: 11px; border-left: 3px solid #ccc; background: #f9f9f9; display: flex; flex-direction: column; gap: 2px; }
+        .perfect-match { border-left-color: var(--gold); background: #fffdf0; font-weight: bold; border-left-width: 5px; flex-direction: row; justify-content: space-between; align-items: center; }
+        .is-error { opacity: 0.7; color: #555; }
+        .btn-collapse { width: 100%; border: none; background: #eee; color: #666; font-size: 10px; padding: 8px; border-radius: 4px; cursor: pointer; margin-top: 8px; }
+        .error-tag-list { display: flex; flex-wrap: wrap; gap: 2px; margin-top: 2px; }
+        .error-tag { font-size: 9px; background: #fff1f0; color: #cf1322; padding: 0px 4px; border-radius: 3px; border: 1px solid #ffa39e; }
     </style>
 </head>
 <body>
 
 <div class="config-box">
     <div class="row-group">
-        <div class="file-input-wrapper"><input type="file" id="uploadAll" accept=".xlsx"></div>
-        <input type="text" id="empId" value="A022994" placeholder="工號">
-        <button onclick="run()" style="background: var(--safe);">讀取顏色身分</button>
+        <input type="file" id="xlsxIn" accept=".xlsx" style="flex:1;">
+        <input type="text" id="targetId" value="A022994" style="width:80px; text-align:center; padding:5px; border:1px solid #ccc; border-radius:4px;">
+        <button onclick="changeView('pc')">💻</button>
+        <button onclick="changeView('mobile')">📱</button>
+        <button onclick="initData()" style="background:var(--safe); color:white; border:none; padding:8px 15px; border-radius:8px; font-weight:bold;">分析班表</button>
+    </div>
+    <div id="batchPanel" class="batch-panel">
+        <div style="font-weight:bold; color:#856404;">📅 已選連續區間：<span id="selText">0</span> 天</div>
+        <div style="margin-top:8px; display:flex; align-items:center; gap:10px;">
+            <span>目標班別：</span>
+            <select id="shiftSel" onchange="renderUI()" style="padding:6px; flex:1; border-radius:5px; border:2px solid var(--primary);"></select>
+        </div>
+        <button class="btn-execute" onclick="executeBatch()">執行批次對調</button>
     </div>
 </div>
 
-<div id="calendar-container">
-    <div id="displayUser" style="padding: 10px; font-weight: bold;">請讀取 .xlsx 檔案</div>
-    <div id="calendarArea"></div>
-</div>
+<div id="calendarArea" class="mode-pc"></div>
 
 <script>
-    let state = { master: {}, personal: {}, orig: {}, simPrefix: {}, dayKeys: [], collapsedDays: {} };
+    const TIME_TABLE = { "E159G": ["05:15","14:45"], "F30XA": ["06:30","16:30"], "G009A": ["07:00","16:00"], "J00XA": ["10:00","20:00"], "N008A": ["14:00","22:00"], "N30XA": ["14:30","00:30"], "O30XA": ["15:30","01:30"], "D1": ["09:00","18:00"] };
+    let state = { master: {}, personal: {}, dayKeys: [], selectedDays: [], mode: 'pc', expanded: {}, targetPrefix: "" };
 
-    // 核心顏色邏輯：將顏色分類
-    function analyzeColor(cell) {
-        if (!cell || !cell.s || !cell.s.fill || !cell.s.fill.fgColor) return { type: 'SAFE', label: '無色' };
-        let hex = cell.s.fill.fgColor.rgb || "";
-        if (hex.length > 6) hex = hex.substring(hex.length - 6); // 取後6碼
-
-        // 定義禁區色號（根據描述）
-        const yellowTones = ['FFFF00', 'FFFFE0', 'F2F200']; 
-        const pinkTones = ['FFC0CB', 'FF00FF', 'FF69B4', 'F48FB1'];
-        const blueTones = ['0000FF', '00008B', 'ADD8E6', '87CEEB', '1E88E5'];
-
-        if (yellowTones.includes(hex.toUpperCase())) return { type: 'FORBIDDEN', label: '副站(黃)', class: 'badge-yellow' };
-        if (pinkTones.some(t => hex.toUpperCase().includes(t))) return { type: 'FORBIDDEN', label: '督導(粉)', class: 'badge-pink' };
-        if (blueTones.some(t => hex.toUpperCase().includes(t))) return { type: 'FORBIDDEN', label: 'TAO(藍)', class: 'badge-blue' };
-        
-        return { type: 'SAFE', label: '可上(他色)', class: 'badge-safe' };
+    function changeView(m) { state.mode = m; renderUI(); }
+    function toM(t) { if(!t) return 0; const [h, m] = t.split(':').map(Number); return h * 60 + m; }
+    
+    function checkSafe(pre, cur, nxt) {
+        const p = TIME_TABLE[pre?.split('/')[0]], c = TIME_TABLE[cur?.split('/')[0]], n = TIME_TABLE[nxt?.split('/')[0]];
+        if(!c) return true;
+        let ok = true;
+        if(p) ok = ok && ((toM(c[0]) + 1440) - toM(p[1])) >= 660; 
+        if(n) ok = ok && ((toM(n[0]) + 1440) - toM(c[1])) >= 660;
+        return ok;
     }
 
-    document.getElementById('uploadAll').onchange = function(e) {
-        const file = e.target.files[0];
-        const reader = new FileReader();
-        reader.onload = (ev) => {
-            const data = new Uint8Array(ev.target.result);
-            // 必須開啟 cellStyles: true 才能讀到顏色
-            const workbook = XLSX.read(data, {type:'array', cellStyles: true});
-            const sheet = workbook.Sheets[workbook.SheetNames[0]];
-            const rows = XLSX.utils.sheet_to_json(sheet, {header:1, defval:""});
-            
-            let headerIdx = rows.findIndex(r => r.includes("員工編號"));
-            const headerRow = rows[headerIdx];
-            
-            state.dayKeys = [];
-            headerRow.forEach(cell => { if(String(cell).includes("/")) state.dayKeys.push(cell); });
+    async function initData() {
+        const f = document.getElementById('xlsxIn').files[0];
+        if(!f) return;
+        const buf = await f.arrayBuffer();
+        const wb = XLSX.read(buf, {cellStyles: true});
+        const sheet = wb.Sheets[wb.SheetNames[0]];
+        const data = XLSX.utils.sheet_to_json(sheet, {header:1});
+        let hIdx = data.findIndex(r => r.includes("員工編號"));
+        state.dayKeys = [];
+        data[hIdx].forEach(c => { if(String(c).includes("/")) state.dayKeys.push(c); });
+        state.personal = {}; state.master = {}; state.expanded = {}; 
+        for(let i = hIdx + 1; i < data.length; i++){
+            const name = String(data[i][2]||"").trim(), id = String(data[i][1]||"").trim().toUpperCase();
+            if(!id || id === "總計") continue;
+            state.personal[name] = { id, schedule: {} };
+            state.dayKeys.forEach(d => {
+                const cell = sheet[XLSX.utils.encode_cell({r:i, c:data[hIdx].indexOf(d)})];
+                const val = cell ? String(cell.v).trim() : "D1";
+                let hex = (cell?.s?.fill?.fgColor?.rgb || "").slice(-6).toUpperCase();
+                state.personal[name].schedule[d] = { text: val, isForb: ['FFFF00','FFFFE0','FFC0CB','FF00FF','0000FF','1E88E5'].includes(hex) };
+                const p = val.charAt(0).toUpperCase();
+                if(!state.master[d]) state.master[d] = {};
+                if(!state.master[d][p]) state.master[d][p] = [];
+                state.master[d][p].push({ name, text: val });
+            });
+        }
+        renderUI();
+    }
 
-            state.personal = {}; state.master = {};
-            for(let i = headerIdx + 1; i < rows.length; i++) {
-                const id = String(rows[i][1]||"").trim().toUpperCase();
-                const name = String(rows[i][2]||"").trim();
-                if(!id || id.includes("總計")) continue;
-
-                state.personal[name] = { id: id };
-                state.dayKeys.forEach(d => {
-                    const colIdx = headerRow.indexOf(d);
-                    const cellAddr = XLSX.utils.encode_cell({r: i, c: colIdx});
-                    const cell = sheet[cellAddr];
-                    const shiftText = cell ? String(cell.v).trim() : "";
-                    const colorInfo = analyzeColor(cell);
-
-                    state.personal[name][d] = { text: shiftText, color: colorInfo };
-                    
-                    const prefix = shiftText.charAt(0).toUpperCase() || "D";
-                    if(!state.master[d]) state.master[d] = {};
-                    if(!state.master[d][prefix]) state.master[d][prefix] = [];
-                    state.master[d][prefix].push({ name, actual: shiftText, color: colorInfo });
-                });
+    function toggleSelect(d) {
+        const currentIdx = state.dayKeys.indexOf(d);
+        if (state.selectedDays.length > 0) {
+            const indices = state.selectedDays.map(day => state.dayKeys.indexOf(day)).sort((a,b)=>a-b);
+            const minIdx = indices[0], maxIdx = indices[indices.length - 1];
+            if (state.selectedDays.includes(d)) {
+                state.selectedDays.splice(state.selectedDays.indexOf(d), 1);
+            } else if (currentIdx === minIdx - 1 || currentIdx === maxIdx + 1) {
+                state.selectedDays.push(d);
+            } else {
+                state.selectedDays = [d];
             }
-            run();
-        };
-        reader.readAsArrayBuffer(file);
-    };
-
-    function run() {
-        const id = document.getElementById('empId').value.trim().toUpperCase();
-        const userName = Object.keys(state.personal).find(k => state.personal[k].id === id);
-        if(!userName) return;
-        state.userName = userName;
-        document.getElementById('displayUser').innerText = `👤 ${userName} (${id}) - 顏色分析模式`;
-        state.dayKeys.forEach(d => {
-            state.orig[d] = state.personal[userName][d];
-            state.simPrefix[d] = state.orig[d].text.charAt(0).toUpperCase() || "D";
-            state.collapsedDays[d] = true;
-        });
-        render();
+        } else { state.selectedDays.push(d); }
+        
+        if(state.selectedDays.length > 0) {
+            document.getElementById('batchPanel').style.display = 'block';
+            document.getElementById('selText').innerText = state.selectedDays.length;
+            let sets = new Set();
+            state.selectedDays.forEach(day => Object.keys(state.master[day]||{}).forEach(p => sets.add(p)));
+            let opt = '<option value="">(初始) 顯示同班別名單</option>';
+            Array.from(sets).sort().forEach(p => opt += `<option value="${p}">${p} 班</option>`);
+            document.getElementById('shiftSel').innerHTML = opt;
+        } else { document.getElementById('batchPanel').style.display = 'none'; }
+        renderUI();
     }
 
-    function render() {
-        const area = document.getElementById('calendarArea');
-        let html = '';
-        state.dayKeys.forEach(d => {
-            const currentPrefix = state.simPrefix[d];
-            const isOriginal = (currentPrefix === (state.orig[d].text.charAt(0).toUpperCase() || "D"));
-            const candidates = (state.master[d] && state.master[d][currentPrefix]) 
-                               ? state.master[d][currentPrefix].filter(c => c.name !== state.userName) : [];
+    function toggleExpand(e, d) {
+        e.stopPropagation();
+        state.expanded[d] = !state.expanded[d];
+        renderUI();
+    }
 
-            html += `
-                <div class="day-card">
-                    <div style="display:flex; justify-content:space-between; font-weight:bold;">
-                        <span>${d}</span>
-                        <span style="font-size:11px; color:#888;">原：${state.orig[d].text}</span>
-                    </div>
-                    <select class="shift-select" onchange="state.simPrefix['${d}']=this.value; state.collapsedDays['${d}']=false; render();">
-                        <option value="D" ${currentPrefix==='D'?'selected':''}>休假</option>
-                        ${Object.keys(state.master[d]||{}).sort().map(p => p==='D'?'':`<option value="${p}" ${p===currentPrefix?'selected':''}>${p} 班</option>`).join('')}
-                    </select>
-                    <div>
-                        ${candidates.map(c => {
-                            const isForbidden = (c.color.type === 'FORBIDDEN');
-                            return `
-                                <div class="person-card ${isForbidden ? 'forbidden' : 'can-swap'}">
-                                    <b>${c.name}</b> <small>${c.actual}</small>
-                                    <span class="status-badge ${c.color.class || ''}">${c.color.label}</span>
-                                    ${isForbidden ? '<span style="float:right; font-size:10px; color:#999;">✕ 不可代</span>' : '<span style="float:right; color:var(--safe);">🎯 可換</span>'}
-                                </div>`;
-                        }).join('')}
-                    </div>
-                </div>`;
+    function executeBatch() {
+        const me = Object.keys(state.personal).find(n => state.personal[n].id === document.getElementById('targetId').value.toUpperCase());
+        if(!state.bestMatch) return alert("無全可換人選。");
+        state.selectedDays.forEach(d => {
+            const m = state.personal[me].schedule[d].text, h = state.personal[state.bestMatch].schedule[d].text;
+            state.personal[me].schedule[d].text = h; state.personal[state.bestMatch].schedule[d].text = m;
         });
-        area.innerHTML = html;
+        alert(`對調完成！與 ${state.bestMatch} 連續對調成功。`);
+        state.selectedDays = []; renderUI();
+    }
+
+    function renderUI() {
+        const area = document.getElementById('calendarArea');
+        area.className = state.mode === 'pc' ? 'mode-pc' : 'mode-mobile';
+        const myName = Object.keys(state.personal).find(n => state.personal[n].id === document.getElementById('targetId').value.toUpperCase());
+        if(!myName) return;
+        state.targetPrefix = document.getElementById('shiftSel')?.value || "";
+
+        const selectedIndices = state.selectedDays.map(d => state.dayKeys.indexOf(d)).sort((a,b)=>a-b);
+        const firstIdx = selectedIndices[0], lastIdx = selectedIndices[selectedIndices.length - 1];
+
+        // 核心邏輯：計算所有人在「已選區間」的狀態明細
+        let userStats = {};
+        if(state.selectedDays.length > 0) {
+            Object.keys(state.personal).forEach(n => {
+                if(n === myName) return;
+                userStats[n] = { errors: [], totalMatch: 0 };
+                
+                state.selectedDays.forEach(d => {
+                    const myS = state.personal[myName].schedule[d], cS = state.personal[n].schedule[d];
+                    const dIdx = state.dayKeys.indexOf(d), target = state.targetPrefix || myS.text.charAt(0).toUpperCase();
+                    
+                    const isMatchPrefix = cS.text.charAt(0).toUpperCase() === target;
+                    let safe = checkSafe(state.personal[n].schedule[state.dayKeys[dIdx-1]]?.text, myS.text, state.personal[n].schedule[state.dayKeys[dIdx+1]]?.text);
+                    if (dIdx === firstIdx) safe = safe && checkSafe(state.personal[n].schedule[state.dayKeys[dIdx-1]]?.text, myS.text, null);
+                    if (dIdx === lastIdx) safe = safe && checkSafe(null, myS.text, state.personal[n].schedule[state.dayKeys[dIdx+1]]?.text);
+
+                    if (isMatchPrefix && !cS.isForb && safe) {
+                        userStats[n].totalMatch++;
+                    } else {
+                        let reason = !isMatchPrefix ? "班別不符" : (!safe ? "休息不足" : "身分排除");
+                        userStats[n].errors.push(`${d.split('/')[1]}日${reason}(${cS.text})`);
+                    }
+                });
+            });
+        }
+
+        const commonIntersection = Object.keys(userStats).filter(n => userStats[n].totalMatch === state.selectedDays.length);
+        state.bestMatch = commonIntersection[0] || null;
+
+        area.innerHTML = state.dayKeys.map(d => {
+            const isSelectedDay = state.selectedDays.includes(d);
+            const isExp = !!state.expanded[d], myS = state.personal[myName].schedule[d];
+            const currT = state.targetPrefix || myS.text.charAt(0).toUpperCase();
+            
+            let topHTML = "", otherHTML = "", otherCount = 0;
+
+            Object.keys(state.personal).forEach(n => {
+                if(n === myName) return;
+                const cS = state.personal[n].schedule[d];
+                const isTop = isSelectedDay && commonIntersection.includes(n);
+                const isMatchPrefix = cS.text.charAt(0).toUpperCase() === currT;
+
+                if (isTop || isMatchPrefix) {
+                    if(isTop) {
+                        topHTML += `<div class="person-item perfect-match">
+                            <span>${n} <small>(${cS.text})</small></span>
+                            <b style="color:var(--gold)">✨</b>
+                        </div>`;
+                    } else {
+                        otherCount++;
+                        if(isExp) {
+                            let errorTags = isSelectedDay ? userStats[n].errors.map(err => `<span class="error-tag">${err}</span>`).join('') : '';
+                            otherHTML += `<div class="person-item is-error">
+                                <div style="display:flex; justify-content:space-between;">
+                                    <span>${n} <small>(${cS.text})</small></span>
+                                </div>
+                                <div class="error-tag-list">${errorTags}</div>
+                            </div>`;
+                        }
+                    }
+                }
+            });
+
+            return `
+                <div class="day-card ${isSelectedDay?'selected':''}" onclick="toggleSelect('${d}')">
+                    <div class="date-label">
+                        ${d.split('/')[1]}
+                        <span>${myS.text} ${isSelectedDay && state.targetPrefix ? `<span style="color:red">➜ ${currT}</span>`:''}</span>
+                    </div>
+                    <div style="margin-top:5px;">
+                        ${topHTML}
+                        <button class="btn-collapse" onclick="toggleExpand(event, '${d}')">
+                            ${isExp ? '收起名單 ↑' : `展開其餘人選 (${otherCount}) ↓`}
+                        </button>
+                        <div style="margin-top:4px;">${otherHTML}</div>
+                    </div>
+                </div>
+            `;
+        }).join('');
     }
 </script>
 </body>
