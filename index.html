@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>班表模擬器 - v3.6.3 Stable</title>
+    <title>班表模擬器 - v3.6.4 Stable</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
     <style>
         :root { --primary: #007AFF; --danger: #ff4d4f; --safe: #2e7d32; --bg: #f0f2f5; --selected: #fff9c4; --gold: #d4a017; --white: #ffffff; }
@@ -31,13 +31,16 @@
         .error-tag { font-size: 9px; background: #fff1f0; color: #cf1322; padding: 1px 4px; border-radius: 3px; border: 1px solid #ffa39e; margin-right: 2px; display: inline-block; margin-top: 2px; }
         .batch-panel { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); width: 95%; max-width: 500px; background: rgba(255, 251, 230, 0.96); backdrop-filter: blur(12px); padding: 15px; border-radius: 16px; border: 2px solid #ffe58f; box-shadow: 0 -4px 25px rgba(0,0,0,0.18); z-index: 2000; display: none; }
         .btn-execute { background: var(--danger); color: white; border: none; padding: 12px; border-radius: 8px; font-weight: 900; font-size: 16px; cursor: pointer; width: 100%; margin-top: 10px; }
+        
+        /* 🚀 新增：摘要中的 LINE 按鈕樣式 */
+        .btn-line { background: #06C755; color: white; border: none; border-radius: 4px; font-size: 10px; padding: 2px 8px; cursor: pointer; margin-left: 10px; font-weight: bold; }
     </style>
 </head>
 <body class="mode-pc">
 
 <div class="config-box">
     <div class="row-group">
-        <strong style="color:var(--primary); white-space: nowrap;">模擬器 v3.6.3</strong>
+        <strong style="color:var(--primary); white-space: nowrap;">模擬器 v3.6.4</strong>
         <div class="switch-container" onclick="toggleMode()">
             <div class="switch-slider"></div>
             <div class="switch-label">💻</div>
@@ -159,26 +162,44 @@
         updateSummary(); closePanel();
     }
 
+    // 🚀 新增：處理發送訊息的函式
+    async function shareToLine(personName, logs) {
+        const me = Object.keys(state.personal).find(n => state.personal[n].id === document.getElementById('targetId').value.toUpperCase()) || "我";
+        const details = logs.map(l => `${l.date.split('/')[1]}日(${l.from} ⇄ ${l.to})`).join('、');
+        const message = `嗨 ${personName}，想請問：\n${details}\n這幾天方便跟我(${me})換班嗎？謝謝！`;
+        
+        if (navigator.share) {
+            try { await navigator.share({ text: message }); } catch (err) {}
+        } else {
+            window.open(`https://line.me/R/msg/text/?${encodeURIComponent(message)}`, '_blank');
+        }
+    }
+
     function updateSummary() {
         const box = document.getElementById('summaryArea'), list = document.getElementById('summaryList');
         const me = Object.keys(state.personal).find(n => state.personal[n].id === document.getElementById('targetId').value.toUpperCase());
-        
         if (state.changeLogs.length === 0) { box.style.display = 'none'; return; }
-        
         box.style.display = 'block';
-        // 🚀 修正：將標題改為您的名字
         document.getElementById('summaryTitle').innerText = `📝 異動摘要 (${me || '我'})`;
-
         const groups = state.changeLogs.reduce((acc, log) => {
             if (!acc[log.person]) acc[log.person] = [];
             acc[log.person].push(log); return acc;
         }, {});
-        list.innerHTML = Object.keys(groups).map(name => `
-            <div style="margin-bottom:8px;">
-                <div style="font-weight:bold; color:var(--primary);">${name}</div>
-                <div style="font-size:12px; padding-left:8px;">${groups[name].map(l => `${l.date.split('/')[1]}日: ${l.from} → ${l.to}`).join('<br>')}</div>
+
+        // 🚀 修改：加入 LINE 橋接按鈕
+        list.innerHTML = Object.keys(groups).map(name => {
+            const jsonLogs = JSON.stringify(groups[name]).replace(/"/g, '&quot;');
+            return `
+            <div style="margin-bottom:12px; border-bottom:1px dashed #eee; padding-bottom:8px;">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <div style="font-weight:bold; color:var(--primary); font-size:14px;">${name}</div>
+                    <button class="btn-line" onclick='shareToLine("${name}", ${jsonLogs})'>💬 通知</button>
+                </div>
+                <div style="font-size:12px; padding-left:8px; margin-top:4px; color:#555;">
+                    ${groups[name].map(l => `• ${l.date.split('/')[1]}日: ${l.from} → ${l.to}`).join('<br>')}
+                </div>
             </div>
-        `).join('');
+        `}).join('');
     }
 
     function clearChanges() { state.changeLogs = []; updateSummary(); renderUI(); }
