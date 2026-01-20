@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>班表小幫手 - v3.7.1 Stable</title>
+    <title>班表小幫手 - v3.7.2 Stable</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
     <style>
         :root { --primary: #007AFF; --danger: #ff4d4f; --safe: #2e7d32; --bg: #f0f2f5; --selected: #fff9c4; --gold: #d4a017; --white: #ffffff; }
@@ -38,13 +38,13 @@
 
 <div class="config-box">
     <div class="row-group">
-        <strong style="color:var(--primary); white-space: nowrap;">班表小幫手 v3.7.1</strong>
+        <strong style="color:var(--primary); white-space: nowrap;">班表小幫手 v3.7.2</strong>
         <div class="switch-container" onclick="toggleMode()">
             <div class="switch-slider"></div>
             <div class="switch-label">💻</div>
             <div class="switch-label">📱</div>
         </div>
-        <span style="font-size:10px; color:#999; margin-left:auto;">Stable Build</span>
+        <span style="font-size:10px; color:#999; margin-left:auto;">Strict Logic</span>
     </div>
     <div class="row-group">
         <input type="file" id="xlsxIn" accept=".xlsx" style="flex:1; min-width:120px;">
@@ -150,7 +150,7 @@
         return h * 60 + m; 
     }
     
-    // 🚀 v3.7.1 核心修正：加入跨日下班判斷
+    // 🚀 v3.7.2 核心衝突檢測：考慮跨日班(下班時間小於上班時間)
     function isConflicting(preTxt, curTxt) {
         if (!preTxt || !curTxt) return false;
         const pKey = preTxt.split('/')[0], cKey = curTxt.split('/')[0];
@@ -161,12 +161,10 @@
         let prevEnd = toM(p[1]);
         let currStart = toM(c[0]);
 
-        // 如果下班時間(prevEnd) 小於 上班時間(prevStart)，代表是隔天凌晨下班
-        if (prevEnd < prevStart) {
-            prevEnd += 1440;
-        }
+        // 核心判定：如果下班時間分鐘比上班時間分鐘還小，則是隔天凌晨下班
+        if (prevEnd < prevStart) { prevEnd += 1440; }
 
-        // 總休息分鐘 = (今天上班分鐘數 + 1440) - 前一天下班分鐘數
+        // 休息分鐘 = (今天上班時間點 + 24小時座標) - 前一天下班點
         const restMinutes = (currStart + 1440) - prevEnd;
         return restMinutes < 660; 
     }
@@ -267,8 +265,12 @@
             Object.keys(state.personal).forEach(n => {
                 if(n === myName) return;
                 userStats[n] = { errors: [], totalMatch: 0 };
+                
+                // 🚀 建立對象的虛擬班表 (換班後的情況)
                 let mockSchedules = {};
-                state.selectedDays.forEach(d => { mockSchedules[d] = state.personal[myName].schedule[d].text; });
+                state.selectedDays.forEach(d => {
+                    mockSchedules[d] = state.personal[myName].schedule[d].text;
+                });
 
                 if (!checkSixDays(n, mockSchedules, dayLabels)) userStats[n].errors.push(`連六規則違反`);
 
@@ -279,12 +281,19 @@
                     const target = targetPrefix || myS.text.charAt(0).toUpperCase();
                     const isMatchPrefix = cS.text.charAt(0).toUpperCase() === target;
 
+                    // 1. 對象換班後的「當天新班表」(即我的原班別)
                     const curNewShift = mockSchedules[d];
-                    const preDay = dayLabels[dIdx-1], nxtDay = dayLabels[dIdx+1];
+
+                    // 2. 對象的「前一天」 (如果在選取範圍就用新班表，不在則用原班表)
+                    const preDay = dayLabels[dIdx-1];
                     const preShift = (preDay && mockSchedules[preDay] !== undefined) ? mockSchedules[preDay] : state.personal[n].schedule[preDay]?.text;
+
+                    // 3. 對象的「後一天」 (核心修正點：如果後一天不在選取範圍，必須去比對她原本的班)
+                    const nxtDay = dayLabels[dIdx+1];
                     const nxtShift = (nxtDay && mockSchedules[nxtDay] !== undefined) ? mockSchedules[nxtDay] : state.personal[n].schedule[nxtDay]?.text;
                     
                     let restErr = false;
+                    // 檢查換班後的銜接性
                     if (isConflicting(preShift, curNewShift)) restErr = "前休不足";
                     else if (isConflicting(curNewShift, nxtShift)) restErr = "後休不足";
 
