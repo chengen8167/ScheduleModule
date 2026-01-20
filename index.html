@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>班表小幫手 - v3.7.1 Stable</title>
+    <title>班表小幫手 - v3.7.2 Stable</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
     <style>
         :root { --primary: #007AFF; --danger: #ff4d4f; --safe: #2e7d32; --bg: #f0f2f5; --selected: #fff9c4; --gold: #d4a017; --white: #ffffff; }
@@ -38,7 +38,7 @@
 
 <div class="config-box">
     <div class="row-group">
-        <strong style="color:var(--primary); white-space: nowrap;">班表小幫手 v3.7.1</strong>
+        <strong style="color:var(--primary); white-space: nowrap;">班表小幫手 v3.7.2</strong>
         <div class="switch-container" onclick="toggleMode()">
             <div class="switch-slider"></div>
             <div class="switch-label">💻</div>
@@ -156,6 +156,96 @@
         updateSummary(); closePanel();
     }
 
+    function renderUI() {
+        const area = document.getElementById('calendarArea'), dayLabels = state.dayKeys.map(k => k.label);
+        const myName = Object.keys(state.personal).find(n => state.personal[n].id === document.getElementById('targetId').value.toUpperCase());
+        if(!myName || dayLabels.length === 0) return;
+        let targetPrefix = document.getElementById('shiftSel')?.value || "";
+
+        let userStats = {};
+        if(state.selectedDays.length > 0) {
+            Object.keys(state.personal).forEach(n => {
+                if(n === myName) return;
+                userStats[n] = { errors: [], canExchange: true };
+                
+                let mockFullSchedule = {};
+                dayLabels.forEach(d => {
+                    mockFullSchedule[d] = state.selectedDays.includes(d) ? state.personal[myName].schedule[d].text : state.personal[n].schedule[d].text;
+                });
+
+                // 1. 連六檢驗
+                let currentContinuous = 0;
+                dayLabels.forEach(d => {
+                    if (mockFullSchedule[d] !== "D1") currentContinuous++; else currentContinuous = 0;
+                    if (currentContinuous > 6) { userStats[n].errors.push("連六規則違反"); userStats[n].canExchange = false; }
+                });
+
+                // 2. 🚀 休足全量邊界檢驗
+                dayLabels.forEach((d, idx) => {
+                    if (idx === 0) return;
+                    const prevD = dayLabels[idx-1];
+                    if (isConflicting(mockFullSchedule[prevD], mockFullSchedule[d])) {
+                        // 只要牽涉到換班日（無論是換入日還是受影響的次日），都視為阻擋
+                        if (state.selectedDays.includes(d) || state.selectedDays.includes(prevD)) {
+                            userStats[n].errors.push(`${d.split('/')[1]}日休息不足`);
+                            userStats[n].canExchange = false;
+                        }
+                    }
+                });
+
+                // 3. 班別與身分檢驗
+                state.selectedDays.forEach(d => {
+                    const myS = state.personal[myName].schedule[d], cS = state.personal[n].schedule[d];
+                    const target = targetPrefix || myS.text.charAt(0).toUpperCase();
+                    if (cS.text.charAt(0).toUpperCase() !== target) {
+                        userStats[n].errors.push(`${d.split('/')[1]}日班別不符`);
+                        userStats[n].canExchange = false;
+                    }
+                    if (cS.isForb) {
+                        userStats[n].errors.push(`${d.split('/')[1]}日身分限制`);
+                        userStats[n].canExchange = false;
+                    }
+                });
+            });
+        }
+
+        area.innerHTML = dayLabels.map(d => {
+            const isSelectedDay = state.selectedDays.includes(d), isExp = !!state.expanded[d], myS = state.personal[myName].schedule[d];
+            const currT = targetPrefix || myS.text.charAt(0).toUpperCase();
+            let topHTML = "", otherHTML = "", otherCount = 0;
+
+            Object.keys(state.personal).forEach(n => {
+                if(n === myName) return;
+                const stats = userStats[n] || { canExchange: false, errors: [] };
+                const cS = state.personal[n].schedule[d];
+                const isMatchPrefix = cS.text.charAt(0).toUpperCase() === currT;
+
+                if (isSelectedDay && stats.canExchange) {
+                    // 完美匹配：班別對、無規則衝突
+                    const isChosen = state.chosenTarget === n;
+                    topHTML += `<div class="person-item perfect-match ${isChosen?'target-selected':''}" onclick="event.stopPropagation(); selectTargetPerson('${n}')">
+                        <div style="display:flex;justify-content:space-between;align-items:center;"><span class="colored-name" style="color:#${cS.hex} !important;">${n} <small style="color:#666">(${cS.text})</small></span><b>✨</b></div>
+                    </div>`;
+                } else if (isMatchPrefix) {
+                    // 班別對但有衝突，或是非選取日
+                    otherCount++;
+                    if(isExp) {
+                        let errTags = isSelectedDay ? [...new Set(stats.errors)].map(e => `<span class="error-tag">${e}</span>`).join('') : '';
+                        otherHTML += `<div class="person-item"><div style="display:flex;justify-content:space-between;align-items:center;"><span class="colored-name" style="color:#${cS.hex} !important;">${n} <small style="color:#666">(${cS.text})</small></span></div><div>${errTags}</div></div>`;
+                    }
+                }
+            });
+
+            return `<div class="day-card ${isSelectedDay?'selected':''}" onclick="toggleSelect('${d}')">
+                <div class="date-label">${d.split('/')[1]}日 <span>${myS.text}${myS.note}</span></div>
+                <div style="margin-top:5px;">${topHTML}<button class="btn-collapse" onclick="toggleExpand(event, '${d}')">${isExp ? '收起' : `其他(${otherCount})`}</button><div style="margin-top:4px;">${otherHTML}</div></div>
+            </div>`;
+        }).join('');
+    }
+
+    // 其他輔助函數保持不變...
+    function toggleExpand(e, d) { e.stopPropagation(); state.expanded[d] = !state.expanded[d]; renderUI(); }
+    function selectTargetPerson(name) { state.chosenTarget = name; document.getElementById('selectedTargetDisplay').innerText = `對象：${name}`; renderUI(); }
     function clearChanges() { state.changeLogs = []; updateSummary(); renderUI(); }
     function toggleSelect(d) {
         const labels = state.dayKeys.map(k => k.label), idx = labels.indexOf(d);
@@ -178,88 +268,6 @@
         } else bp.style.display = 'none';
         renderUI();
     }
-
-    function toggleExpand(e, d) { e.stopPropagation(); state.expanded[d] = !state.expanded[d]; renderUI(); }
-    function selectTargetPerson(name) { state.chosenTarget = name; document.getElementById('selectedTargetDisplay').innerText = `對象：${name}`; renderUI(); }
-
-    function renderUI() {
-        const area = document.getElementById('calendarArea'), dayLabels = state.dayKeys.map(k => k.label);
-        const myName = Object.keys(state.personal).find(n => state.personal[n].id === document.getElementById('targetId').value.toUpperCase());
-        if(!myName || dayLabels.length === 0) return;
-        let targetPrefix = document.getElementById('shiftSel')?.value || "";
-
-        let userStats = {};
-        if(state.selectedDays.length > 0) {
-            Object.keys(state.personal).forEach(n => {
-                if(n === myName) return;
-                userStats[n] = { errors: [], totalMatch: 0 };
-                
-                // 預擬環境
-                let mockFullSchedule = {};
-                dayLabels.forEach(d => {
-                    mockFullSchedule[d] = state.selectedDays.includes(d) ? state.personal[myName].schedule[d].text : state.personal[n].schedule[d].text;
-                });
-
-                // 連六
-                let maxContinuous = 0, currentContinuous = 0;
-                dayLabels.forEach(d => {
-                    if (mockFullSchedule[d] !== "D1") currentContinuous++; else currentContinuous = 0;
-                    if (currentContinuous > maxContinuous) maxContinuous = currentContinuous;
-                });
-                if (maxContinuous > 6) userStats[n].errors.push("連六規則違反");
-
-                // 🚀 休足掃描：徹底檢查「換班區間」的每一天（包含跟前後原始班的銜接）
-                dayLabels.forEach((d, idx) => {
-                    if (idx === 0) return;
-                    const prevD = dayLabels[idx-1];
-                    // 如果「這一天」或「前一天」是在換班區間內，就必須通過休足檢查
-                    if (state.selectedDays.includes(d) || state.selectedDays.includes(prevD)) {
-                        if (isConflicting(mockFullSchedule[prevD], mockFullSchedule[d])) {
-                            userStats[n].errors.push(`${d.split('/')[1]}日休息不足`);
-                        }
-                    }
-                });
-
-                state.selectedDays.forEach(d => {
-                    const myS = state.personal[myName].schedule[d], cS = state.personal[n].schedule[d];
-                    const target = targetPrefix || myS.text.charAt(0).toUpperCase();
-                    if (cS.text.charAt(0).toUpperCase() !== target) userStats[n].errors.push(`${d.split('/')[1]}日班別不符`);
-                    if (cS.isForb) userStats[n].errors.push(`${d.split('/')[1]}日身分限制`);
-                });
-
-                if (userStats[n].errors.length === 0) userStats[n].totalMatch = state.selectedDays.length;
-            });
-        }
-
-        const commonIntersection = Object.keys(userStats).filter(n => userStats[n].totalMatch === state.selectedDays.length && userStats[n].errors.length === 0);
-
-        area.innerHTML = dayLabels.map(d => {
-            const isSelectedDay = state.selectedDays.includes(d), isExp = !!state.expanded[d], myS = state.personal[myName].schedule[d];
-            const currT = targetPrefix || myS.text.charAt(0).toUpperCase();
-            let topHTML = "", otherHTML = "", otherCount = 0;
-            Object.keys(state.personal).forEach(n => {
-                if(n === myName) return;
-                const cS = state.personal[n].schedule[d], isTop = isSelectedDay && commonIntersection.includes(n), isMatchPrefix = cS.text.charAt(0).toUpperCase() === currT;
-                if (isTop || isMatchPrefix) {
-                    const col = `#${cS.hex}`, isChosen = state.chosenTarget === n, displayShift = `${cS.text}<span class="shift-note">${cS.note || ""}</span>`;
-                    if(isTop) {
-                        topHTML += `<div class="person-item perfect-match ${isChosen?'target-selected':''}" onclick="event.stopPropagation(); selectTargetPerson('${n}')">
-                            <div style="display:flex;justify-content:space-between;align-items:center;"><span class="colored-name" style="color:${col} !important;">${n} <small style="color:#666">(${displayShift})</small></span><b>✨</b></div>
-                        </div>`;
-                    } else { otherCount++; if(isExp) {
-                            let errTags = isSelectedDay ? [...new Set(userStats[n].errors)].map(e => `<span class="error-tag">${e}</span>`).join('') : '';
-                            otherHTML += `<div class="person-item"><div style="display:flex;justify-content:space-between;align-items:center;"><span class="colored-name" style="color:${col} !important;">${n} <small style="color:#666">(${displayShift})</small></span></div><div>${errTags}</div></div>`;
-                        }
-                    }
-                }
-            });
-            return `<div class="day-card ${isSelectedDay?'selected':''}" onclick="toggleSelect('${d}')">
-                <div class="date-label">${d.split('/')[1]}日 <span>${myS.text}${myS.note}</span></div>
-                <div style="margin-top:5px;">${topHTML}<button class="btn-collapse" onclick="toggleExpand(event, '${d}')">${isExp ? '收起' : `其他(${otherCount})`}</button><div style="margin-top:4px;">${otherHTML}</div></div>
-            </div>`;
-        }).join('');
-    }
-
     function updateSummary() {
         const box = document.getElementById('summaryArea'), list = document.getElementById('summaryList'), title = document.getElementById('summaryTitle');
         const me = Object.keys(state.personal).find(n => state.personal[n].id === document.getElementById('targetId').value.toUpperCase());
@@ -280,6 +288,7 @@
                 <div style="font-size:12px; padding-left:8px; margin-top:4px; color:#555;">${groups[name].map(l => `• ${l.date.split('/')[1]}日: ${l.from} → ${l.to}`).join('<br>')}</div>
             </div>`}).join('');
     }
+    function closePanel() { state.selectedDays = []; state.chosenTarget = null; document.getElementById('batchPanel').style.display = 'none'; renderUI(); }
 </script>
 </body>
 </html>
