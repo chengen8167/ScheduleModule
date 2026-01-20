@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>班表小幫手 - v3.6.7 Stable</title>
+    <title>班表小幫手 - v3.7.1 Stable</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
     <style>
         :root { --primary: #007AFF; --danger: #ff4d4f; --safe: #2e7d32; --bg: #f0f2f5; --selected: #fff9c4; --gold: #d4a017; --white: #ffffff; }
@@ -28,7 +28,7 @@
         .perfect-match { border-left-color: var(--gold); background: #fffdf0; font-weight: bold; border-left-width: 5px; cursor: pointer; }
         .perfect-match.target-selected { background: #fff3cd; border: 2px solid var(--gold); }
         .btn-collapse { width: 100%; border: none; background: #eee; color: #666; font-size: 10px; padding: 8px; border-radius: 4px; cursor: pointer; margin-top: 8px; }
-        .error-tag { font-size: 9px; background: #fff1f0; color: #cf1322; padding: 1px 4px; border-radius: 3px; border: 1px solid #ffa39e; margin-right: 2px; display: inline-block; margin-top: 2px; }
+        .error-tag { font-size: 9px; background: #fff1f0; color: #cf1322; padding: 1px 4px; border-radius: 3px; border: 1px solid #ffa39e; margin-right: 2px; display: inline-block; margin-top: 2px; font-weight: bold; }
         .batch-panel { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); width: 95%; max-width: 500px; background: rgba(255, 251, 230, 0.96); backdrop-filter: blur(12px); padding: 15px; border-radius: 16px; border: 2px solid #ffe58f; box-shadow: 0 -4px 25px rgba(0,0,0,0.18); z-index: 2000; display: none; }
         .btn-execute { background: var(--danger); color: white; border: none; padding: 12px; border-radius: 8px; font-weight: 900; font-size: 16px; cursor: pointer; width: 100%; margin-top: 10px; }
         .btn-line { background: #06C755; color: white; border: none; border-radius: 4px; font-size: 10px; padding: 2px 8px; cursor: pointer; margin-left: 10px; font-weight: bold; }
@@ -38,7 +38,7 @@
 
 <div class="config-box">
     <div class="row-group">
-        <strong style="color:var(--primary); white-space: nowrap;">班表小幫手 v3.6.7</strong>
+        <strong style="color:var(--primary); white-space: nowrap;">班表小幫手 v3.7.1</strong>
         <div class="switch-container" onclick="toggleMode()">
             <div class="switch-slider"></div>
             <div class="switch-label">💻</div>
@@ -54,10 +54,7 @@
 </div>
 
 <div id="summaryArea" class="summary-box" style="display:none;">
-    <div style="font-weight:bold; margin-bottom:8px; display:flex; justify-content:space-between;">
-        <span id="summaryTitle">📝 異動摘要</span>
-        <button onclick="clearChanges()" style="font-size:10px; color:var(--danger); border:1px solid var(--danger); background:none; border-radius:4px;">清空</button>
-    </div>
+    <div id="summaryTitle" style="font-weight:bold; margin-bottom:8px; display:flex; justify-content:space-between;"></div>
     <div id="summaryList"></div>
 </div>
 
@@ -139,11 +136,11 @@
 
     function toM(t) { if(!t) return 0; const [h, m] = t.split(':').map(Number); return h * 60 + m; }
     
-    // 🚀 核心邏輯：只檢查這「一對」時間是否衝突
     function isConflicting(preEndShift, curStartShift) {
         const p = TIME_TABLE[preEndShift?.split('/')[0]], c = TIME_TABLE[curStartShift?.split('/')[0]];
-        if(!p || !c) return false; // 其中一邊沒時間就不算衝突
-        return ((toM(c[0]) + 1440) - toM(p[1])) < 660; // 小於 11 小時即衝突
+        if(!p || !c) return false;
+        const diff = (toM(c[0]) + 1440) - toM(p[1]);
+        return diff < 660; // 11小時
     }
 
     function executeBatch() {
@@ -159,43 +156,7 @@
         updateSummary(); closePanel();
     }
 
-    function getShortName(fullName) {
-        if (!fullName) return "";
-        return fullName.length >= 3 ? fullName.substring(1) : fullName;
-    }
-
-    async function shareToLine(personName, logs) {
-        const myFullName = Object.keys(state.personal).find(n => state.personal[n].id === document.getElementById('targetId').value.toUpperCase()) || "我";
-        const myName = getShortName(myFullName), targetName = getShortName(personName);
-        const details = logs.map(l => `${l.date.split('/')[1]}日：${targetName} ${l.to} <-> ${myName} ${l.from}`).join('\n');
-        const message = `嗨 ${targetName}，想請問以下這幾天方便跟我換班嗎？謝謝！\n${details}`;
-        if (navigator.share) { try { await navigator.share({ text: message }); } catch (err) {} }
-        else { window.open(`https://line.me/R/msg/text/?${encodeURIComponent(message)}`, '_blank'); }
-    }
-
-    function updateSummary() {
-        const box = document.getElementById('summaryArea'), list = document.getElementById('summaryList');
-        const me = Object.keys(state.personal).find(n => state.personal[n].id === document.getElementById('targetId').value.toUpperCase());
-        if (state.changeLogs.length === 0) { box.style.display = 'none'; return; }
-        box.style.display = 'block';
-        document.getElementById('summaryTitle').innerText = `📝 異動摘要 (${me || '我'})`;
-        const groups = state.changeLogs.reduce((acc, log) => {
-            if (!acc[log.person]) acc[log.person] = [];
-            acc[log.person].push(log); return acc;
-        }, {});
-        list.innerHTML = Object.keys(groups).map(name => {
-            const jsonLogs = JSON.stringify(groups[name]).replace(/"/g, '&quot;');
-            return `<div style="margin-bottom:12px; border-bottom:1px dashed #eee; padding-bottom:8px;">
-                <div style="display:flex; justify-content:space-between; align-items:center;">
-                    <div style="font-weight:bold; color:var(--primary); font-size:14px;">${name}</div>
-                    <button class="btn-line" onclick='shareToLine("${name}", ${jsonLogs})'>💬 通知</button>
-                </div>
-                <div style="font-size:12px; padding-left:8px; margin-top:4px; color:#555;">${groups[name].map(l => `• ${l.date.split('/')[1]}日: ${l.from} → ${l.to}`).join('<br>')}</div>
-            </div>`}).join('');
-    }
-
     function clearChanges() { state.changeLogs = []; updateSummary(); renderUI(); }
-
     function toggleSelect(d) {
         const labels = state.dayKeys.map(k => k.label), idx = labels.indexOf(d);
         if (state.selectedDays.length > 0) {
@@ -221,16 +182,6 @@
     function toggleExpand(e, d) { e.stopPropagation(); state.expanded[d] = !state.expanded[d]; renderUI(); }
     function selectTargetPerson(name) { state.chosenTarget = name; document.getElementById('selectedTargetDisplay').innerText = `對象：${name}`; renderUI(); }
 
-    function checkSixDays(name, mockSchedules, dayLabels) {
-        let maxCount = 0, currentCount = 0;
-        dayLabels.forEach(d => {
-            const s = mockSchedules[d] !== undefined ? mockSchedules[d] : state.personal[name].schedule[d].text;
-            if (s !== "D1") currentCount++; else currentCount = 0;
-            if (currentCount > maxCount) maxCount = currentCount;
-        });
-        return maxCount <= 6;
-    }
-
     function renderUI() {
         const area = document.getElementById('calendarArea'), dayLabels = state.dayKeys.map(k => k.label);
         const myName = Object.keys(state.personal).find(n => state.personal[n].id === document.getElementById('targetId').value.toUpperCase());
@@ -243,44 +194,43 @@
                 if(n === myName) return;
                 userStats[n] = { errors: [], totalMatch: 0 };
                 
-                // 🚀 核心修正：正確預擬對方的「新班表」狀態
-                let mockSchedules = {};
-                state.selectedDays.forEach(d => {
-                    mockSchedules[d] = state.personal[myName].schedule[d].text;
+                // 預擬環境
+                let mockFullSchedule = {};
+                dayLabels.forEach(d => {
+                    mockFullSchedule[d] = state.selectedDays.includes(d) ? state.personal[myName].schedule[d].text : state.personal[n].schedule[d].text;
                 });
 
-                // 1. 檢查連六
-                if (!checkSixDays(n, mockSchedules, dayLabels)) {
-                    userStats[n].errors.push(`連六規則違反`);
-                }
+                // 連六
+                let maxContinuous = 0, currentContinuous = 0;
+                dayLabels.forEach(d => {
+                    if (mockFullSchedule[d] !== "D1") currentContinuous++; else currentContinuous = 0;
+                    if (currentContinuous > maxContinuous) maxContinuous = currentContinuous;
+                });
+                if (maxContinuous > 6) userStats[n].errors.push("連六規則違反");
 
-                // 2. 逐日檢查條件
-                state.selectedDays.forEach(d => {
-                    const dIdx = dayLabels.indexOf(d);
-                    const myS = state.personal[myName].schedule[d];
-                    const cS = state.personal[n].schedule[d];
-                    const target = targetPrefix || myS.text.charAt(0).toUpperCase();
-                    const isMatchPrefix = cS.text.charAt(0).toUpperCase() === target;
-
-                    // 🚀 休足檢查：拿「模擬換入的班」去跟「前後天」比
-                    const curShift = mockSchedules[d];
-                    const preShift = mockSchedules[dayLabels[dIdx-1]] !== undefined ? mockSchedules[dayLabels[dIdx-1]] : state.personal[n].schedule[dayLabels[dIdx-1]]?.text;
-                    const nxtShift = mockSchedules[dayLabels[dIdx+1]] !== undefined ? mockSchedules[dayLabels[dIdx+1]] : state.personal[n].schedule[dayLabels[dIdx+1]]?.text;
-                    
-                    let restError = false;
-                    if (isConflicting(preShift, curShift)) restError = "前休不足";
-                    if (isConflicting(curShift, nxtShift)) restError = "後休不足";
-
-                    if (isMatchPrefix && !cS.isForb && !restError && userStats[n].errors.length === 0) {
-                        userStats[n].totalMatch++;
-                    } else {
-                        if (!isMatchPrefix) userStats[n].errors.push(`${d.split('/')[1]}日不符`);
-                        else if (cS.isForb) userStats[n].errors.push(`${d.split('/')[1]}日身分`);
-                        else if (restError) userStats[n].errors.push(`${d.split('/')[1]}日${restError}`);
+                // 🚀 休足掃描：徹底檢查「換班區間」的每一天（包含跟前後原始班的銜接）
+                dayLabels.forEach((d, idx) => {
+                    if (idx === 0) return;
+                    const prevD = dayLabels[idx-1];
+                    // 如果「這一天」或「前一天」是在換班區間內，就必須通過休足檢查
+                    if (state.selectedDays.includes(d) || state.selectedDays.includes(prevD)) {
+                        if (isConflicting(mockFullSchedule[prevD], mockFullSchedule[d])) {
+                            userStats[n].errors.push(`${d.split('/')[1]}日休息不足`);
+                        }
                     }
                 });
+
+                state.selectedDays.forEach(d => {
+                    const myS = state.personal[myName].schedule[d], cS = state.personal[n].schedule[d];
+                    const target = targetPrefix || myS.text.charAt(0).toUpperCase();
+                    if (cS.text.charAt(0).toUpperCase() !== target) userStats[n].errors.push(`${d.split('/')[1]}日班別不符`);
+                    if (cS.isForb) userStats[n].errors.push(`${d.split('/')[1]}日身分限制`);
+                });
+
+                if (userStats[n].errors.length === 0) userStats[n].totalMatch = state.selectedDays.length;
             });
         }
+
         const commonIntersection = Object.keys(userStats).filter(n => userStats[n].totalMatch === state.selectedDays.length && userStats[n].errors.length === 0);
 
         area.innerHTML = dayLabels.map(d => {
@@ -308,6 +258,27 @@
                 <div style="margin-top:5px;">${topHTML}<button class="btn-collapse" onclick="toggleExpand(event, '${d}')">${isExp ? '收起' : `其他(${otherCount})`}</button><div style="margin-top:4px;">${otherHTML}</div></div>
             </div>`;
         }).join('');
+    }
+
+    function updateSummary() {
+        const box = document.getElementById('summaryArea'), list = document.getElementById('summaryList'), title = document.getElementById('summaryTitle');
+        const me = Object.keys(state.personal).find(n => state.personal[n].id === document.getElementById('targetId').value.toUpperCase());
+        if (state.changeLogs.length === 0) { box.style.display = 'none'; return; }
+        box.style.display = 'block';
+        title.innerHTML = `<span>📝 異動摘要 (${me || '我'})</span><button onclick="clearChanges()" style="font-size:10px; color:var(--danger); border:1px solid var(--danger); background:none; border-radius:4px;">清空</button>`;
+        const groups = state.changeLogs.reduce((acc, log) => {
+            if (!acc[log.person]) acc[log.person] = [];
+            acc[log.person].push(log); return acc;
+        }, {});
+        list.innerHTML = Object.keys(groups).map(name => {
+            const jsonLogs = JSON.stringify(groups[name]).replace(/"/g, '&quot;');
+            return `<div style="margin-bottom:12px; border-bottom:1px dashed #eee; padding-bottom:8px;">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <div style="font-weight:bold; color:var(--primary); font-size:14px;">${name}</div>
+                    <button class="btn-line" onclick='shareToLine("${name}", ${jsonLogs})'>💬 通知</button>
+                </div>
+                <div style="font-size:12px; padding-left:8px; margin-top:4px; color:#555;">${groups[name].map(l => `• ${l.date.split('/')[1]}日: ${l.from} → ${l.to}`).join('<br>')}</div>
+            </div>`}).join('');
     }
 </script>
 </body>
