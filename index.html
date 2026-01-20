@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>班表小幫手 - v3.8.5 Color Fixed</title>
+    <title>班表小幫手 - v3.8.6 Final Color</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
     <style>
         :root { --primary: #007AFF; --danger: #ff4d4f; --safe: #2e7d32; --bg: #f0f2f5; --selected: #fff9c4; --gold: #d4a017; --white: #ffffff; }
@@ -18,12 +18,12 @@
         #calendarArea { display: grid; gap: 8px; padding: 8px; }
         .mode-pc { grid-template-columns: repeat(7, 1fr); }
         .mode-mobile { grid-template-columns: 1fr; }
-        .day-card { background: var(--white); border-radius: 10px; padding: 10px; border: 2px solid transparent; min-height: 80px; cursor: pointer; }
+        .day-card { background: var(--white); border-radius: 10px; padding: 10px; border: 2px solid transparent; min-height: 80px; transition: 0.2s; cursor: pointer; }
         .day-card.selected { border-color: var(--gold); background: var(--selected); }
         .date-label { display: flex; justify-content: space-between; font-weight: 800; border-bottom: 1px solid #eee; padding-bottom: 5px; }
         .person-item { padding: 6px 8px; border-radius: 4px; margin-top: 4px; font-size: 12px; border-left: 3px solid #ccc; background: #f9f9f9; display: flex; flex-direction: column; }
         .colored-name { font-weight: 900; color: #000000; } 
-        .perfect-match { border-left-color: var(--gold); background: #fffdf0; border-left-width: 5px; }
+        .perfect-match { border-left-color: var(--gold); background: #fffdf0; font-weight: bold; border-left-width: 5px; cursor: pointer; }
         .perfect-match.target-selected { background: #fff3cd; border: 2px solid var(--gold); }
         .btn-collapse { width: 100%; border: none; background: #eee; color: #666; font-size: 10px; padding: 8px; border-radius: 4px; cursor: pointer; margin-top: 8px; }
         .error-tag { font-size: 9px; background: #fff1f0; color: #cf1322; padding: 1px 4px; border-radius: 3px; border: 1px solid #ffa39e; margin-right: 2px; display: inline-block; margin-top: 2px; }
@@ -35,7 +35,7 @@
 
 <div class="config-box">
     <div class="row-group">
-        <strong style="color:var(--primary); white-space: nowrap;">班表小幫手 v3.8.5</strong>
+        <strong style="color:var(--primary); white-space: nowrap;">班表小幫手 v3.8.6</strong>
         <div class="switch-container" onclick="toggleMode()">
             <div class="switch-slider"></div>
             <div class="switch-label">💻</div>
@@ -92,16 +92,17 @@
         return ((toM(c[0]) + 1440) - pE) < 660; 
     }
 
-    // 取得背景色 (判斷職務排除用)
+    // 取得背景色 (判斷職務排除)
     function getBgColor(cell) {
         try { if (cell?.fill?.fgColor?.argb) return String(cell.fill.fgColor.argb).slice(-6).toUpperCase(); } catch(e) {}
         return "";
     }
 
-    // 取得文字顏色 (顯示名字顏色用)
+    // 取得文字顏色 (對應 v3.8.3 的 getHexColor 但修正為讀取字體)
     function getHexColor(cell) {
         try {
-            if (cell && cell.font && cell.font.color && cell.font.color.argb) {
+            // 如果儲存格有設定文字顏色
+            if (cell?.font?.color?.argb) {
                 let argb = String(cell.font.color.argb);
                 if (argb.length >= 6 && argb !== "00000000" && argb !== "FFFFFFFF") return argb.slice(-6).toUpperCase();
             }
@@ -125,7 +126,7 @@
             const name = getCellVal(nameCell), id = getCellVal(row.getCell(2)).toUpperCase();
             if (!id || id.includes("總計")) return;
             
-            // 背景色過濾職務
+            // 排除背景色為 副站、督導、TAO 的人
             if (EXCLUDE_COLORS.includes(getBgColor(nameCell))) return;
 
             state.personal[name] = { id, schedule: {} };
@@ -133,7 +134,7 @@
                 const cell = row.getCell(dk.col);
                 state.personal[name].schedule[dk.label] = { 
                     text: getCellVal(cell) || "D1", 
-                    hex: getHexColor(cell) // 抓取該班別格子內的文字顏色
+                    hex: getHexColor(cell) // 這裡抓取文字顏色
                 };
             });
         });
@@ -142,7 +143,8 @@
 
     function renderUI() {
         const area = document.getElementById('calendarArea'), labels = state.dayKeys.map(k => k.label);
-        const myName = Object.keys(state.personal).find(n => state.personal[n].id === document.getElementById('targetId').value.toUpperCase());
+        const myId = document.getElementById('targetId').value.toUpperCase();
+        const myName = Object.keys(state.personal).find(n => state.personal[n].id === myId);
         if(!myName || labels.length === 0) return;
         let targetPrefix = document.getElementById('shiftSel')?.value || "";
 
