@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>班表小幫手 - v3.9.5 Perfect Match Fix</title>
+    <title>班表小幫手 - v3.9.6 Filter Fixed</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
     <style>
         :root { --primary: #007AFF; --danger: #ff4d4f; --safe: #2e7d32; --bg: #f0f2f5; --selected: #fff9c4; --gold: #d4a017; --white: #ffffff; }
@@ -35,7 +35,7 @@
 
 <div class="config-box">
     <div class="row-group">
-        <strong style="color:var(--primary); white-space: nowrap;">班表小幫手 v3.9.5</strong>
+        <strong style="color:var(--primary); white-space: nowrap;">班表小幫手 v3.9.6</strong>
         <div class="switch-container" onclick="toggleMode()">
             <div class="switch-slider"></div>
             <div class="switch-label">💻</div>
@@ -150,22 +150,18 @@
             if(n === myName) return;
             userStats[n] = { errors: [], totalMatch: 0 };
             
-            // 邏輯核心：計算這幾天換班後是否完全不衝突
             state.selectedDays.forEach(d => {
                 const idx = labels.indexOf(d);
-                const myST = state.personal[myName].schedule[d].text; // 我要把這個班換給他
-                
-                // 檢查換班後與他原本的前後天是否衝突
+                const myST = state.personal[myName].schedule[d].text; 
                 const prevST = state.personal[n].schedule[labels[idx-1]]?.text;
                 const nextST = state.personal[n].schedule[labels[idx+1]]?.text;
                 
                 const restErr = isConflicting(prevST, myST) || isConflicting(myST, nextST);
                 if (!restErr) userStats[n].totalMatch++;
-                else userStats[n].errors.push(`${d.split('/')[1]}日換班後休息不足`);
+                else userStats[n].errors.push(`${d.split('/')[1]}日休息不足`);
             });
         });
 
-        // Perfect Match：在選取的這幾天換班後，完全沒有休息不足問題的人
         const perfects = Object.keys(userStats).filter(n => userStats[n].totalMatch === state.selectedDays.length);
 
         area.innerHTML = labels.map(d => {
@@ -178,13 +174,13 @@
                 const hisBase = cleanShift(cS.text);
                 const myBase = cleanShift(myS.text);
                 
-                // 決定誰要顯示在列表上：
-                // 1. 換班後完全沒問題的人 (Perfect Match)
-                // 2. 原本班別符合搜尋目標的人 (Target Prefix)
-                const target = targetPrefix || myBase.charAt(0).toUpperCase();
-                const isTargetMatch = hisBase.charAt(0).toUpperCase() === target;
+                // 修正篩選邏輯：
+                // 如果有選擇下拉選單 (targetPrefix)，則必須符合該字母。
+                // 如果沒選擇，則預設過濾同班別人員。
+                const currentFilter = targetPrefix || myBase.charAt(0).toUpperCase();
+                const isTypeMatch = hisBase.charAt(0).toUpperCase() === currentFilter;
 
-                if (isPerf || isTargetMatch) {
+                if (isPerf || isTypeMatch) {
                     const displayColor = cS.hex ? `#${cS.hex}` : '#000000';
                     const item = `<div class="person-item ${isPerf?'perfect-match':''} ${state.chosenTarget===n?'target-selected':''}" onclick="event.stopPropagation(); ${isPerf?`selectTargetPerson('${n}')`:''}">
                         <div style="display:flex;justify-content:space-between;"><span class="colored-name" style="color:${displayColor} !important;">${n} <small style="color:#666">(${cS.text.replace(/[\r\n]+/g, " ")})</small></span>${isPerf?'<b>✨</b>':''}</div>
