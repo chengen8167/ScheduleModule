@@ -3,10 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>班表小幫手 - v3.7.8 Strict Restore</title>
+    <title>班表小幫手 - v3.7.9 Fixed</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
     <style>
-        /* 嚴格還原 v3.7.3 核心 CSS */
         :root { --primary: #007AFF; --danger: #ff4d4f; --safe: #2e7d32; --bg: #f0f2f5; --selected: #fff9c4; --gold: #d4a017; --white: #ffffff; }
         * { box-sizing: border-box; font-family: -apple-system, sans-serif; }
         body { margin: 0; background: var(--bg); font-size: 14px; padding-bottom: 200px; }
@@ -16,16 +15,14 @@
         .switch-label { flex: 1; text-align: center; z-index: 2; font-size: 14px; }
         .switch-slider { position: absolute; width: 36px; height: 26px; background: var(--white); border-radius: 18px; top: 3px; left: 3px; transition: 0.3s; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
         .mode-mobile .switch-slider { left: 41px; }
-        .summary-box { background: #fff; margin: 8px; padding: 12px; border-radius: 10px; border-left: 5px solid var(--primary); box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
         #calendarArea { display: grid; gap: 8px; padding: 8px; }
         .mode-pc { grid-template-columns: repeat(7, 1fr); }
         .mode-mobile { grid-template-columns: 1fr; }
         .day-card { background: var(--white); border-radius: 10px; padding: 10px; border: 2px solid transparent; min-height: 80px; transition: 0.2s; cursor: pointer; }
         .day-card.selected { border-color: var(--gold); background: var(--selected); }
         .date-label { display: flex; justify-content: space-between; font-weight: 800; border-bottom: 1px solid #eee; padding-bottom: 5px; }
-        .shift-note { font-size: 9px; color: #ff7875; font-weight: normal; margin-left: 4px; font-style: italic; }
         .person-item { padding: 6px 8px; border-radius: 4px; margin-top: 4px; font-size: 12px; border-left: 3px solid #ccc; background: #f9f9f9; display: flex; flex-direction: column; }
-        .colored-name { font-weight: 900; color: #000000; } 
+        .colored-name { font-weight: 900; } 
         .perfect-match { border-left-color: var(--gold); background: #fffdf0; font-weight: bold; border-left-width: 5px; cursor: pointer; }
         .perfect-match.target-selected { background: #fff3cd; border: 2px solid var(--gold); }
         .btn-collapse { width: 100%; border: none; background: #eee; color: #666; font-size: 10px; padding: 8px; border-radius: 4px; cursor: pointer; margin-top: 8px; }
@@ -38,13 +35,13 @@
 
 <div class="config-box">
     <div class="row-group">
-        <strong style="color:var(--primary); white-space: nowrap;">班表小幫手 v3.7.8</strong>
+        <strong style="color:var(--primary); white-space: nowrap;">班表小幫手 v3.7.9</strong>
         <div class="switch-container" onclick="toggleMode()">
             <div class="switch-slider"></div>
             <div class="switch-label">💻</div>
             <div class="switch-label">📱</div>
         </div>
-        <span style="font-size:10px; color:#999; margin-left:auto;">UI Restored</span>
+        <span style="font-size:10px; color:#999; margin-left:auto;">Dropdown Fixed</span>
     </div>
     <div class="row-group">
         <input type="file" id="xlsxIn" accept=".xlsx" style="flex:1; min-width:120px;">
@@ -53,28 +50,19 @@
     </div>
 </div>
 
-<div id="summaryArea" class="summary-box" style="display:none;">
-    <div style="font-weight:bold; margin-bottom:8px; display:flex; justify-content:space-between;">
-        <span id="summaryTitle">📝 異動摘要</span>
-        <button onclick="clearChanges()" style="font-size:10px; color:var(--danger); border:1px solid var(--danger); background:none; border-radius:4px;">清空</button>
-    </div>
-    <div id="summaryList"></div>
-</div>
-
 <div id="batchPanel" class="batch-panel">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 8px;">
         <span style="font-weight:bold;">📅 已選：<span id="selText">0</span> 天</span>
         <button onclick="closePanel()" style="background:none; border:none; color:#999; font-size:24px;">&times;</button>
     </div>
     <div id="selectedTargetDisplay" style="font-weight:bold; color:var(--danger); margin-bottom: 8px; font-size:13px;">對象：尚未選擇</div>
-    <select id="shiftSel" onchange="renderUI()" style="width:100%; padding:10px; border-radius:8px; border:2px solid var(--primary);"></select>
+    <select id="shiftSel" onchange="renderUI()" style="width:100%; padding:10px; border-radius:8px; border:2px solid var(--primary); font-weight:bold;"></select>
     <button class="btn-execute" onclick="executeBatch()">執行換班</button>
 </div>
 
 <div id="calendarArea" class="mode-pc"></div>
 
 <script>
-    // 嚴格記錄所有班別代號
     const TIME_TABLE = {
         "E159j": ["05:15", "14:45"], "E159G": ["05:15", "14:45"],
         "F308a": ["06:30", "16:30"], "F30XA": ["06:30", "16:30"],
@@ -84,7 +72,7 @@
         "D1": ["09:00", "18:00"]
     };
 
-    let state = { master: {}, personal: {}, dayKeys: [], selectedDays: [], mode: 'pc', expanded: {}, chosenTarget: null, changeLogs: [] };
+    let state = { personal: {}, dayKeys: [], selectedDays: [], mode: 'pc', expanded: {}, chosenTarget: null };
 
     function toM(t) { if(!t) return 0; const [h, m] = t.split(':').map(Number); return h * 60 + m; }
 
@@ -94,6 +82,39 @@
         if(!p || !c) return false;
         let pE = toM(p[1]); if (pE < toM(p[0])) pE += 1440;
         return ((toM(c[0]) + 1440) - pE) < 660; 
+    }
+
+    async function initData() {
+        const f = document.getElementById('xlsxIn').files[0]; if(!f) return;
+        const workbook = new ExcelJS.Workbook(); await workbook.xlsx.load(await f.arrayBuffer());
+        const worksheet = workbook.getWorksheet(1);
+        state.personal = {}; state.dayKeys = [];
+        let hRowIdx = -1;
+        worksheet.eachRow((row, rowNum) => { if (hRowIdx === -1) row.eachCell(c => { if (getCellVal(c).includes("員工編號")) hRowIdx = rowNum; }); });
+        const hRow = worksheet.getRow(hRowIdx);
+        hRow.eachCell((cell, colNum) => { if (getCellVal(cell).includes("/")) state.dayKeys.push({ label: getCellVal(cell), col: colNum }); });
+        
+        let shiftPrefixes = new Set();
+        worksheet.eachRow((row, rowNum) => {
+            if (rowNum <= hRowIdx) return;
+            const name = getCellVal(row.getCell(3)), id = getCellVal(row.getCell(2)).toUpperCase();
+            if (!id || id.includes("總計")) return;
+            state.personal[name] = { id, schedule: {} };
+            state.dayKeys.forEach(dk => {
+                const cell = row.getCell(dk.col); const val = getCellVal(cell) || "D1";
+                const hex = getHexColor(cell);
+                state.personal[name].schedule[dk.label] = { text: val, hex: hex };
+                if(val && /^[A-Z]/.test(val)) shiftPrefixes.add(val.charAt(0).toUpperCase());
+            });
+        });
+        updateShiftDropdown(Array.from(shiftPrefixes).sort());
+        renderUI();
+    }
+
+    function updateShiftDropdown(prefixes) {
+        const sel = document.getElementById('shiftSel');
+        sel.innerHTML = `<option value="">-- 跟隨我的班別 --</option>` + 
+            prefixes.map(p => `<option value="${p}">${p} 班</option>`).join('');
     }
 
     function renderUI() {
@@ -108,19 +129,14 @@
             userStats[n] = { errors: [], totalMatch: 0 };
             state.selectedDays.forEach(d => {
                 const idx = dayLabels.indexOf(d);
-                const hisToday = state.personal[n].schedule[d].text;
-                // 目標班別篩選：比對首字母
-                const isMatch = hisToday.charAt(0).toUpperCase() === (targetPrefix || state.personal[myName].schedule[d].text.charAt(0).toUpperCase());
-
-                const curNew = state.personal[myName].schedule[d].text; // 模擬：對象換入我的班
+                const isMatch = state.personal[n].schedule[d].text.startsWith(targetPrefix || state.personal[myName].schedule[d].text.charAt(0).toUpperCase());
+                const curNew = state.personal[myName].schedule[d].text;
                 const preS = state.personal[n].schedule[dayLabels[idx-1]]?.text;
                 const nxtS = state.personal[n].schedule[dayLabels[idx+1]]?.text;
-                
                 let err = "";
                 if (isConflicting(preS, curNew)) err = "前休不足";
                 else if (isConflicting(curNew, nxtS)) err = "後休不足";
-
-                if (isMatch && !state.personal[n].schedule[d].isForb && !err) userStats[n].totalMatch++;
+                if (isMatch && !err) userStats[n].totalMatch++;
                 else if (err) userStats[n].errors.push(`${d.split('/')[1]}日${err}`);
             });
         });
@@ -130,46 +146,35 @@
         area.innerHTML = dayLabels.map(d => {
             const isSel = state.selectedDays.includes(d), myS = state.personal[myName].schedule[d], isExp = !!state.expanded[d];
             const currentT = targetPrefix || myS.text.charAt(0).toUpperCase();
-            let topHTML = "", otherHTML = "", otherCount = 0;
+            let topH = "", otherH = "", otherC = 0;
             
             Object.keys(state.personal).forEach(n => {
                 if(n === myName) return;
                 const cS = state.personal[n].schedule[d], isPerf = isSel && perfects.includes(n);
-                
-                // 還原 v3.7.3 的比對與渲染邏輯
-                if (isPerf || cS.text.charAt(0).toUpperCase() === currentT) {
-                    const col = `#${cS.hex}`, isChosen = state.chosenTarget === n, displayShift = `${cS.text}<span class="shift-note">${cS.note || ""}</span>`;
-                    
-                    if(isPerf) {
-                        topHTML += `<div class="person-item perfect-match ${isChosen?'target-selected':''}" onclick="event.stopPropagation(); selectTargetPerson('${n}')">
-                            <div style="display:flex;justify-content:space-between;align-items:center;"><span class="colored-name" style="color:${col} !important;">${n} <small style="color:#666">(${displayShift})</small></span><b>✨</b></div>
-                        </div>`;
-                    } else {
-                        otherCount++;
-                        if(isExp) {
-                            let errTags = isSel ? [...new Set(userStats[n].errors)].map(e => `<span class="error-tag">${e}</span>`).join('') : '';
-                            otherHTML += `<div class="person-item">
-                                <div style="display:flex;justify-content:space-between;align-items:center;"><span class="colored-name" style="color:${col} !important;">${n} <small style="color:#666">(${displayShift})</small></span></div>
-                                <div>${errTags}</div>
-                            </div>`;
-                        }
-                    }
+                if (isPerf || cS.text.startsWith(currentT)) {
+                    // 顏色邏輯修正：如果是黑色/無色，顯示深灰色 #333
+                    const col = (cS.hex === "000000" || !cS.hex) ? "#333333" : `#${cS.hex}`;
+                    const itemHTML = `<div class="person-item ${isPerf?'perfect-match':''} ${state.chosenTarget===n?'target-selected':''}" onclick="event.stopPropagation(); ${isPerf?`selectTargetPerson('${n}')`:''}">
+                        <div style="display:flex;justify-content:space-between;align-items:center;"><span class="colored-name" style="color:${col};">${n} <small style="color:#666">(${cS.text})</small></span>${isPerf?'<b>✨</b>':''}</div>
+                        ${isSel && !isPerf && userStats[n].errors.length ? `<div>${[...new Set(userStats[n].errors)].map(e=>`<span class="error-tag">${e}</span>`).join('')}</div>`:''}
+                    </div>`;
+                    if(isPerf) topH += itemHTML; else { otherC++; if(isExp) otherH += itemHTML; }
                 }
             });
 
-            // 還原 v3.7.3 的卡片 HTML
             return `<div class="day-card ${isSel?'selected':''}" onclick="toggleSelect('${d}')">
-                <div class="date-label">${d.split('/')[1]}日 <span>${myS.text}${myS.note || ""}</span></div>
+                <div class="date-label">${d.split('/')[1]}日 <span>${myS.text}</span></div>
                 <div style="margin-top:5px;">
-                    ${topHTML}
-                    <button class="btn-collapse" onclick="toggleExpand(event, '${d}')">${isExp ? '收起' : `其他(${otherCount})`}</button>
-                    <div style="margin-top:4px;">${otherHTML}</div>
+                    ${topH}
+                    <button class="btn-collapse" onclick="toggleExpand(event, '${d}')">${isExp ? '收起' : `其他(${otherC})`}</button>
+                    ${otherH}
                 </div>
             </div>`;
         }).join('');
     }
 
-    // --- 其餘控制邏輯完全還原 v3.7.3 ---
+    function getCellVal(c) { if(!c || c.value===null) return ""; return typeof c.value==='object' ? c.text || "" : String(c.value).trim(); }
+    function getHexColor(c) { try { if (c?.fill?.fgColor?.argb) return String(c.fill.fgColor.argb).slice(-6).toUpperCase(); } catch(e) {} return "000000"; }
     function setMode(m) { state.mode = m; document.body.className = `mode-${m}`; document.getElementById('calendarArea').className = `mode-${m}`; renderUI(); }
     function toggleMode() { setMode(state.mode === 'pc' ? 'mobile' : 'pc'); }
     function toggleSelect(d) {
@@ -179,33 +184,9 @@
         document.getElementById('selText').innerText = state.selectedDays.length;
         renderUI();
     }
-    async function initData() {
-        const f = document.getElementById('xlsxIn').files[0]; if(!f) return;
-        const workbook = new ExcelJS.Workbook(); await workbook.xlsx.load(await f.arrayBuffer());
-        const worksheet = workbook.getWorksheet(1);
-        state.personal = {}; state.dayKeys = [];
-        let hRowIdx = -1;
-        worksheet.eachRow((row, rowNum) => { if (hRowIdx === -1) row.eachCell(c => { if (getCellVal(c).includes("員工編號")) hRowIdx = rowNum; }); });
-        const hRow = worksheet.getRow(hRowIdx);
-        hRow.eachCell((cell, colNum) => { if (getCellVal(cell).includes("/")) state.dayKeys.push({ label: getCellVal(cell), col: colNum }); });
-        worksheet.eachRow((row, rowNum) => {
-            if (rowNum <= hRowIdx) return;
-            const name = getCellVal(row.getCell(3)), id = getCellVal(row.getCell(2)).toUpperCase();
-            if (!id || id.includes("總計")) return;
-            state.personal[name] = { id, schedule: {} };
-            state.dayKeys.forEach(dk => {
-                const cell = row.getCell(dk.col); const val = getCellVal(cell) || "D1";
-                state.personal[name].schedule[dk.label] = { text: val, hex: getHexColor(cell), isForb: ["FFFF99", "FF99CC", "99CCFF", "CCFFFF"].includes(getHexColor(cell)) };
-            });
-        });
-        renderUI();
-    }
-    function getCellVal(c) { if(!c || c.value===null) return ""; return typeof c.value==='object' ? c.text || "" : String(c.value).trim(); }
-    function getHexColor(c) { try { if (c?.fill?.fgColor?.argb) return String(c.fill.fgColor.argb).slice(-6).toUpperCase(); } catch(e) {} return "000000"; }
     function toggleExpand(e,d){ e.stopPropagation(); state.expanded[d]=!state.expanded[d]; renderUI(); }
     function selectTargetPerson(n){ state.chosenTarget=n; document.getElementById('selectedTargetDisplay').innerText=`對象：${n}`; renderUI(); }
     function closePanel() { state.selectedDays = []; state.chosenTarget = null; document.getElementById('batchPanel').style.display = 'none'; renderUI(); }
-    function clearChanges(){ state.changeLogs=[]; renderUI(); }
     function executeBatch(){ alert("已記錄異動"); closePanel(); }
 </script>
 </body>
