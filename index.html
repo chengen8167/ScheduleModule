@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>班表小幫手 - v3.6.5 Stable</title>
+    <title>班表小幫手 - v3.6.6 Stable</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
     <style>
         :root { --primary: #007AFF; --danger: #ff4d4f; --safe: #2e7d32; --bg: #f0f2f5; --selected: #fff9c4; --gold: #d4a017; --white: #ffffff; }
@@ -38,7 +38,7 @@
 
 <div class="config-box">
     <div class="row-group">
-        <strong style="color:var(--primary); white-space: nowrap;">班表小幫手 v3.6.5</strong>
+        <strong style="color:var(--primary); white-space: nowrap;">班表小幫手 v3.6.6</strong>
         <div class="switch-container" onclick="toggleMode()">
             <div class="switch-slider"></div>
             <div class="switch-label">💻</div>
@@ -160,7 +160,6 @@
         updateSummary(); closePanel();
     }
 
-    // 🚀 核心邏輯：去除姓氏，僅留名字
     function getShortName(fullName) {
         if (!fullName) return "";
         return fullName.length >= 3 ? fullName.substring(1) : fullName;
@@ -168,18 +167,11 @@
 
     async function shareToLine(personName, logs) {
         const myFullName = Object.keys(state.personal).find(n => state.personal[n].id === document.getElementById('targetId').value.toUpperCase()) || "我";
-        const myName = getShortName(myFullName);
-        const targetName = getShortName(personName);
-        
-        // 🚀 潤飾後的訊息內容
+        const myName = getShortName(myFullName), targetName = getShortName(personName);
         const details = logs.map(l => `${l.date.split('/')[1]}日：${targetName} ${l.to} <-> ${myName} ${l.from}`).join('\n');
         const message = `嗨 ${targetName}，想請問以下這幾天方便跟我換班嗎？謝謝！\n${details}`;
-        
-        if (navigator.share) {
-            try { await navigator.share({ text: message }); } catch (err) {}
-        } else {
-            window.open(`https://line.me/R/msg/text/?${encodeURIComponent(message)}`, '_blank');
-        }
+        if (navigator.share) { try { await navigator.share({ text: message }); } catch (err) {} }
+        else { window.open(`https://line.me/R/msg/text/?${encodeURIComponent(message)}`, '_blank'); }
     }
 
     function updateSummary() {
@@ -192,20 +184,15 @@
             if (!acc[log.person]) acc[log.person] = [];
             acc[log.person].push(log); return acc;
         }, {});
-
         list.innerHTML = Object.keys(groups).map(name => {
             const jsonLogs = JSON.stringify(groups[name]).replace(/"/g, '&quot;');
-            return `
-            <div style="margin-bottom:12px; border-bottom:1px dashed #eee; padding-bottom:8px;">
+            return `<div style="margin-bottom:12px; border-bottom:1px dashed #eee; padding-bottom:8px;">
                 <div style="display:flex; justify-content:space-between; align-items:center;">
                     <div style="font-weight:bold; color:var(--primary); font-size:14px;">${name}</div>
                     <button class="btn-line" onclick='shareToLine("${name}", ${jsonLogs})'>💬 通知</button>
                 </div>
-                <div style="font-size:12px; padding-left:8px; margin-top:4px; color:#555;">
-                    ${groups[name].map(l => `• ${l.date.split('/')[1]}日: ${l.from} → ${l.to}`).join('<br>')}
-                </div>
-            </div>
-        `}).join('');
+                <div style="font-size:12px; padding-left:8px; margin-top:4px; color:#555;">${groups[name].map(l => `• ${l.date.split('/')[1]}日: ${l.from} → ${l.to}`).join('<br>')}</div>
+            </div>`}).join('');
     }
 
     function clearChanges() { state.changeLogs = []; updateSummary(); renderUI(); }
@@ -235,6 +222,22 @@
     function toggleExpand(e, d) { e.stopPropagation(); state.expanded[d] = !state.expanded[d]; renderUI(); }
     function selectTargetPerson(name) { state.chosenTarget = name; document.getElementById('selectedTargetDisplay').innerText = `對象：${name}`; renderUI(); }
 
+    // 🚀 核心強化：檢查連六規則
+    function checkSixDays(name, dateIdx, dayLabels, mockSchedules) {
+        let count = 0;
+        // 往前搜
+        for (let i = dateIdx; i >= 0; i--) {
+            const shift = mockSchedules[dayLabels[i]] || state.personal[name].schedule[dayLabels[i]].text;
+            if (shift !== "D1") count++; else break;
+        }
+        // 往後搜 (不含當前起始日，避免重複計算)
+        for (let i = dateIdx + 1; i < dayLabels.length; i++) {
+            const shift = mockSchedules[dayLabels[i]] || state.personal[name].schedule[dayLabels[i]].text;
+            if (shift !== "D1") count++; else break;
+        }
+        return count <= 6;
+    }
+
     function renderUI() {
         const area = document.getElementById('calendarArea'), dayLabels = state.dayKeys.map(k => k.label);
         const myName = Object.keys(state.personal).find(n => state.personal[n].id === document.getElementById('targetId').value.toUpperCase());
@@ -242,24 +245,45 @@
         let targetPrefix = document.getElementById('shiftSel')?.value || "";
         const selectedIndices = state.selectedDays.map(d => dayLabels.indexOf(d)).sort((a,b)=>a-b);
         const firstIdx = selectedIndices[0], lastIdx = selectedIndices[selectedIndices.length - 1];
+
         let userStats = {};
         if(state.selectedDays.length > 0) {
             Object.keys(state.personal).forEach(n => {
                 if(n === myName) return;
                 userStats[n] = { errors: [], totalMatch: 0 };
+                
+                // 預擬環境：假設選中的日期都換成了我的原始班別
+                let mockSchedules = {};
+                state.selectedDays.forEach(d => {
+                    mockSchedules[d] = state.personal[myName].schedule[d].text;
+                });
+
                 state.selectedDays.forEach(d => {
                     const myS = state.personal[myName].schedule[d], cS = state.personal[n].schedule[d];
                     const dIdx = dayLabels.indexOf(d), target = targetPrefix || myS.text.charAt(0).toUpperCase();
                     const isMatchPrefix = cS.text.charAt(0).toUpperCase() === target;
-                    let safe = checkSafe(state.personal[n].schedule[dayLabels[dIdx-1]]?.text, myS.text, state.personal[n].schedule[dayLabels[dIdx+1]]?.text);
-                    if (dIdx === firstIdx) safe = safe && checkSafe(state.personal[n].schedule[dayLabels[dIdx-1]]?.text, myS.text, null);
-                    if (dIdx === lastIdx) safe = safe && checkSafe(null, myS.text, state.personal[n].schedule[dayLabels[dIdx+1]]?.text);
-                    if (isMatchPrefix && !cS.isForb && safe) userStats[n].totalMatch++;
-                    else userStats[n].errors.push(`${d.split('/')[1]}日${!isMatchPrefix?'不符':(cS.isForb?'身分':'休足')}`);
+                    
+                    // 🚀 休足檢查：考慮預擬後的銜接
+                    const preShift = mockSchedules[dayLabels[dIdx-1]] || state.personal[n].schedule[dayLabels[dIdx-1]]?.text;
+                    const nxtShift = mockSchedules[dayLabels[dIdx+1]] || state.personal[n].schedule[dayLabels[dIdx+1]]?.text;
+                    let safe = checkSafe(preShift, myS.text, nxtShift);
+                    
+                    // 🚀 連六檢查
+                    let noSix = checkSixDays(n, dIdx, dayLabels, mockSchedules);
+
+                    if (isMatchPrefix && !cS.isForb && safe && noSix) {
+                        userStats[n].totalMatch++;
+                    } else {
+                        if (!isMatchPrefix) userStats[n].errors.push(`${d.split('/')[1]}日不符`);
+                        else if (cS.isForb) userStats[n].errors.push(`${d.split('/')[1]}日身分`);
+                        else if (!safe) userStats[n].errors.push(`${d.split('/')[1]}日休足`);
+                        else if (!noSix) userStats[n].errors.push(`${d.split('/')[1]}日連六`);
+                    }
                 });
             });
         }
         const commonIntersection = Object.keys(userStats).filter(n => userStats[n].totalMatch === state.selectedDays.length);
+
         area.innerHTML = dayLabels.map(d => {
             const isSelectedDay = state.selectedDays.includes(d), isExp = !!state.expanded[d], myS = state.personal[myName].schedule[d];
             const currT = targetPrefix || myS.text.charAt(0).toUpperCase();
