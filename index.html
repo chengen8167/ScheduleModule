@@ -3,493 +3,289 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>班表模擬器 - v3.7 - 20260120</title>
+    <title>班表模擬器 - v3.8 - 20260120</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
     <style>
-        :root {
-            --primary: #007AFF;
-            --danger: #ff4d4f;
-            --safe: #2e7d32;
-            --bg: #f0f2f5;
-            --selected: #fff9c4;
-            --gold: #d4a017;
-            --white: #ffffff;
+        :root { --primary: #007AFF; --danger: #ff4d4f; --safe: #2e7d32; --bg: #f0f2f5; --selected: #fff9c4; --gold: #d4a017; --white: #ffffff; --black: #000000; }
+        * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
+        body { margin: 0; background: var(--bg); font-size: 14px; padding-bottom: 200px; }
+        
+        /* 🛠️ 修復：配置區域佈局優化 */
+        .config-box { background: var(--white); padding: 10px 15px; border-bottom: 1px solid #ddd; position: sticky; top: 0; z-index: 1000; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
+        .row-group { display: flex; gap: 12px; align-items: center; margin-bottom: 8px; flex-wrap: nowrap; overflow-x: auto; }
+        
+        /* 🛠️ 修復：防止開關被擠壓 */
+        .switch-container { 
+            flex-shrink: 0; display: flex; align-items: center; gap: 4px; background: #e0e0e0; 
+            padding: 4px; border-radius: 20px; cursor: pointer; position: relative; 
+            width: 80px; height: 34px; user-select: none;
         }
+        .switch-label { flex: 1; text-align: center; z-index: 2; font-size: 14px; line-height: 26px; }
+        .switch-slider { position: absolute; width: 36px; height: 26px; background: var(--white); border-radius: 18px; top: 4px; left: 4px; transition: 0.3s cubic-bezier(0.18, 0.89, 0.35, 1.15); box-shadow: 0 2px 4px rgba(0,0,0,0.15); }
+        .mode-mobile .switch-slider { transform: translateX(36px); }
 
-        * {
-            box-sizing: border-box;
-            font-family: -apple-system, sans-serif;
+        .summary-box { background: #fff; margin: 10px; padding: 15px; border-radius: 12px; border-left: 6px solid var(--primary); box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+        .summary-name { font-weight: 800; color: var(--primary); margin-bottom: 4px; font-size: 15px; }
+        .summary-detail { font-size: 13px; color: #444; line-height: 1.5; padding-left: 10px; border-left: 1px solid #eee; }
+
+        #calendarArea { display: grid; gap: 10px; padding: 10px; }
+        .mode-pc { grid-template-columns: repeat(7, 1fr); }
+        .mode-mobile { grid-template-columns: 1fr; }
+
+        .day-card { background: var(--white); border-radius: 12px; padding: 12px; border: 2px solid transparent; transition: all 0.2s; cursor: pointer; }
+        .day-card.selected { border-color: var(--gold); background: var(--selected); transform: scale(1.02); }
+        .date-label { display: flex; justify-content: space-between; font-weight: 800; border-bottom: 1px solid #eee; padding-bottom: 8px; font-size: 15px; }
+        .shift-note { font-size: 10px; color: #ff4d4f; font-weight: normal; margin-left: 4px; opacity: 0.8; }
+        
+        .person-item { padding: 8px; border-radius: 6px; margin-top: 6px; font-size: 12px; border-left: 3px solid #ddd; background: #fdfdfd; }
+        .perfect-match { border-left-color: var(--gold); background: #fffef0; border-left-width: 5px; cursor: pointer; }
+        .perfect-match.target-selected { background: #fff3cd; border: 2px solid var(--gold); }
+        
+        .batch-panel { 
+            position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); width: 92%; max-width: 480px; 
+            background: rgba(255, 255, 255, 0.98); backdrop-filter: blur(15px); padding: 18px; border-radius: 20px; border: 1px solid #ffe58f; 
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2); z-index: 2000; display: none;
         }
-
-        body {
-            margin: 0;
-            background: var(--bg);
-            font-size: 14px;
-            padding-bottom: 200px;
-        }
-
-        .config-box {
-            background: var(--white);
-            padding: 12px;
-            border-bottom: 1px solid #ddd;
-            position: sticky;
-            top: 0;
-            z-index: 1000;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-        }
-
-        .row-group {
-            display: flex;
-            gap: 10px;
-            align-items: center;
-            margin-bottom: 8px;
-            flex-wrap: wrap;
-        }
-
-        /* 🚀 新增：異動摘要區樣式 */
-        .summary-box {
-            background: #fff;
-            margin: 8px;
-            padding: 12px;
-            border-radius: 10px;
-            border-left: 5px solid var(--primary);
-            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
-        }
-
-        .summary-item {
-            margin-bottom: 8px;
-            padding-bottom: 8px;
-            border-bottom: 1px dashed #eee;
-        }
-
-        .summary-name {
-            font-weight: bold;
-            color: var(--primary);
-            margin-bottom: 4px;
-        }
-
-        .summary-detail {
-            font-size: 12px;
-            color: #555;
-            padding-left: 8px;
-        }
-
-        /* 繼承 v3.6 樣式 */
-        .switch-container {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            background: #eee;
-            padding: 4px;
-            border-radius: 20px;
-            cursor: pointer;
-            position: relative;
-            width: 80px;
-            height: 32px;
-            user-select: none;
-        }
-
-        .switch-slider {
-            position: absolute;
-            width: 36px;
-            height: 26px;
-            background: var(--white);
-            border-radius: 18px;
-            top: 3px;
-            left: 3px;
-            transition: 0.3s;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-        }
-
-        .mode-mobile .switch-slider {
-            left: 41px;
-        }
-
-        #calendarArea {
-            display: grid;
-            gap: 8px;
-            padding: 8px;
-        }
-
-        .mode-pc {
-            grid-template-columns: repeat(7, 1fr);
-        }
-
-        .mode-mobile {
-            grid-template-columns: 1fr;
-        }
-
-        .day-card {
-            background: var(--white);
-            border-radius: 10px;
-            padding: 10px;
-            border: 2px solid transparent;
-            min-height: 80px;
-            transition: 0.2s;
-            cursor: pointer;
-        }
-
-            .day-card.selected {
-                border-color: var(--gold);
-                background: var(--selected);
-            }
-
-        .date-label {
-            display: flex;
-            justify-content: space-between;
-            font-weight: 800;
-            border-bottom: 1px solid #eee;
-            padding-bottom: 5px;
-        }
-
-        .shift-note {
-            font-size: 9px;
-            color: #ff7875;
-            font-weight: normal;
-            margin-left: 4px;
-            font-style: italic;
-        }
-
-        .person-item {
-            padding: 6px 8px;
-            border-radius: 4px;
-            margin-top: 4px;
-            font-size: 12px;
-            border-left: 3px solid #ccc;
-            background: #f9f9f9;
-            display: flex;
-            flex-direction: column;
-        }
-
-        .perfect-match {
-            border-left-color: var(--gold);
-            background: #fffdf0;
-            font-weight: bold;
-            border-left-width: 5px;
-            cursor: pointer;
-        }
-
-            .perfect-match.target-selected {
-                background: #fff3cd;
-                border: 2px solid var(--gold);
-            }
-
-        .batch-panel {
-            position: fixed;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 95%;
-            max-width: 500px;
-            background: rgba(255, 251, 230, 0.96);
-            backdrop-filter: blur(12px);
-            padding: 15px;
-            border-radius: 16px;
-            border: 2px solid #ffe58f;
-            box-shadow: 0 -4px 25px rgba(0,0,0,0.18);
-            z-index: 2000;
-            display: none;
-            animation: slideUp 0.3s ease-out;
-        }
-
-        @keyframes slideUp {
-            from {
-                bottom: -100px;
-                opacity: 0;
-            }
-
-            to {
-                bottom: 20px;
-                opacity: 1;
-            }
-        }
-
-        .btn-execute {
-            background: var(--danger);
-            color: white;
-            border: none;
-            padding: 12px;
-            border-radius: 8px;
-            font-weight: 900;
-            font-size: 16px;
-            cursor: pointer;
-            width: 100%;
-            margin-top: 10px;
-        }
-
-        .btn-collapse {
-            width: 100%;
-            border: none;
-            background: #eee;
-            color: #666;
-            font-size: 10px;
-            padding: 8px;
-            border-radius: 4px;
-            cursor: pointer;
-            margin-top: 8px;
-        }
-
-        .error-tag {
-            font-size: 9px;
-            background: #fff1f0;
-            color: #cf1322;
-            padding: 1px 4px;
-            border-radius: 3px;
-            border: 1px solid #ffa39e;
-            margin-right: 2px;
-            display: inline-block;
-            margin-top: 2px;
-        }
-
-        .colored-name {
-            font-weight: 900;
-        }
+        .btn-execute { background: var(--danger); color: white; border: none; padding: 14px; border-radius: 10px; font-weight: 900; font-size: 16px; width: 100%; margin-top: 12px; }
+        .error-tag { font-size: 9px; background: #fff1f0; color: #cf1322; padding: 2px 5px; border-radius: 4px; border: 1px solid #ffa39e; margin: 2px 2px 0 0; display: inline-block; }
     </style>
 </head>
 <body class="mode-pc">
 
-    <div class="config-box">
-        <div class="row-group">
-            <strong style="color:var(--primary)">班表模擬器 v3.7</strong>
-            <div class="switch-container" onclick="toggleMode()">
-                <div class="switch-slider"></div>
-                <div class="switch-label">💻</div>
-                <div class="switch-label">📱</div>
-            </div>
-            <span style="font-size:10px; color:#999; margin-left:auto;">20260120 Stable</span>
+<div class="config-box">
+    <div class="row-group">
+        <strong style="color:var(--primary); font-size: 16px; white-space: nowrap;">模擬器 v3.8</strong>
+        <div class="switch-container" onclick="toggleMode()">
+            <div class="switch-slider"></div>
+            <div class="switch-label">💻</div>
+            <div class="switch-label">📱</div>
         </div>
-        <div class="row-group">
-            <input type="file" id="xlsxIn" accept=".xlsx" style="flex:1;">
-            <input type="text" id="targetId" value="A022994" placeholder="員編" style="width:75px; text-align:center;">
-            <button onclick="initData()" id="btnAnalyze" style="background:var(--safe); color:white; border:none; padding:8px 12px; border-radius:8px; font-weight:bold;">分析班表</button>
-        </div>
+        <span style="font-size:10px; color:#999; margin-left:auto; white-space: nowrap;">20260120 Stable</span>
     </div>
-
-    <div id="summaryArea" class="summary-box" style="display:none;">
-        <div style="font-weight:bold; margin-bottom:8px; display:flex; justify-content:space-between;">
-            <span>📝 異動摘要清單</span>
-            <button onclick="clearChanges()" style="font-size:10px; color:var(--danger); border:1px solid var(--danger); background:none; border-radius:4px; cursor:pointer;">清空記錄</button>
-        </div>
-        <div id="summaryList"></div>
+    <div class="row-group">
+        <input type="file" id="xlsxIn" accept=".xlsx" style="flex:1; min-width: 120px;">
+        <input type="text" id="targetId" value="A022994" placeholder="員編" style="width:80px; text-align:center; border:1px solid #ccc; border-radius:6px; padding:6px;">
+        <button onclick="initData()" id="btnAnalyze" style="background:var(--safe); color:white; border:none; padding:8px 16px; border-radius:8px; font-weight:bold; flex-shrink:0;">分析</button>
     </div>
+</div>
 
-    <div id="batchPanel" class="batch-panel">
-        <div style="display:flex; justify-content:space-between; align-items:center; border-bottom: 1px solid #ffe58f; padding-bottom: 8px; margin-bottom: 8px;">
-            <span style="font-weight:bold; color:#856404;">📅 已選：<span id="selText">0</span> 天</span>
-            <button onclick="closePanel()" style="background:none; border:none; color:#999; font-size:24px;">&times;</button>
-        </div>
-        <div id="selectedTargetDisplay" style="font-weight:bold; color:var(--danger); margin-bottom: 8px; font-size:13px;">對象：尚未選擇</div>
-        <div style="display:flex; align-items:center; gap:10px;">
-            <span style="font-weight:bold;">目標班別：</span>
-            <select id="shiftSel" onchange="renderUI()" style="padding:10px; flex:1; border-radius:8px; border:2px solid var(--primary); font-size:15px;"></select>
-        </div>
-        <button class="btn-execute" onclick="executeBatch()">執行批次對調</button>
+<div id="summaryArea" class="summary-box" style="display:none;">
+    <div style="font-weight:bold; margin-bottom:10px; display:flex; justify-content:space-between; align-items:center;">
+        <span>📝 異動摘要清單 (按人名分類)</span>
+        <button onclick="clearChanges()" style="font-size:11px; color:var(--danger); border:1px solid var(--danger); background:none; border-radius:6px; padding:3px 8px; cursor:pointer;">清空</button>
     </div>
+    <div id="summaryList"></div>
+</div>
 
-    <div id="calendarArea" class="mode-pc"></div>
+<div id="batchPanel" class="batch-panel">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 12px;">
+        <span style="font-weight:bold; font-size:16px;">📅 已選：<span id="selText" style="color:var(--danger)">0</span> 天</span>
+        <button onclick="closePanel()" style="background:none; border:none; color:#ccc; font-size:28px; line-height:1;">&times;</button>
+    </div>
+    <div id="selectedTargetDisplay" style="font-weight:bold; color:var(--danger); margin-bottom: 12px; background:#fff1f0; padding:8px; border-radius:8px;">對象：尚未選擇</div>
+    <div style="display:flex; align-items:center; gap:10px;">
+        <span style="font-weight:bold;">目標班別：</span>
+        <select id="shiftSel" onchange="renderUI()" style="padding:10px; flex:1; border-radius:10px; border:2px solid var(--primary); font-size:15px;"></select>
+    </div>
+    <button class="btn-execute" onclick="executeBatch()">執行批次對調</button>
+</div>
 
-    <script>
-        // 繼承 v3.6 核心邏輯
-        const TIME_TABLE = { "E159G": ["05:15", "14:45"], "F30XA": ["06:30", "16:30"], "G009A": ["07:00", "16:00"], "J00XA": ["10:00", "20:00"], "N008A": ["14:00", "22:00"], "N30XA": ["14:30", "00:30"], "O30XA": ["15:30", "01:30"], "D1": ["09:00", "18:00"] };
-        const EXCLUDE_COLORS = ["FFFF99", "FF99CC", "99CCFF", "CCFFFF"];
-        let state = { master: {}, personal: {}, dayKeys: [], selectedDays: [], mode: 'pc', expanded: {}, targetPrefix: "", chosenTarget: null, changeLogs: [] };
+<div id="calendarArea" class="mode-pc"></div>
 
-        window.onload = function () { setMode(/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) ? 'mobile' : 'pc'); };
+<script>
+    const TIME_TABLE = { "E159G": ["05:15","14:45"], "F30XA": ["06:30","16:30"], "G009A": ["07:00","16:00"], "J00XA": ["10:00","20:00"], "N008A": ["14:00","22:00"], "N30XA": ["14:30","00:30"], "O30XA": ["15:30","01:30"], "D1": ["09:00","18:00"] };
+    const EXCLUDE_COLORS = ["FFFF99", "FF99CC", "99CCFF", "CCFFFF"];
+    let state = { master: {}, personal: {}, dayKeys: [], selectedDays: [], mode: 'pc', expanded: {}, targetPrefix: "", chosenTarget: null, changeLogs: [] };
 
-        function setMode(m) {
-            state.mode = m; document.body.className = `mode-${m}`;
-            document.getElementById('calendarArea').className = `mode-${m}`; renderUI();
+    window.onload = function() { setMode(/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) ? 'mobile' : 'pc'); };
+
+    function setMode(m) {
+        state.mode = m; document.body.className = `mode-${m}`;
+        document.getElementById('calendarArea').className = `mode-${m}`; renderUI();
+    }
+    function toggleMode() { setMode(state.mode === 'pc' ? 'mobile' : 'pc'); }
+    function closePanel() { state.selectedDays = []; state.chosenTarget = null; document.getElementById('batchPanel').style.display = 'none'; renderUI(); }
+
+    function getCellVal(cell) {
+        if (!cell || cell.value === null || cell.value === undefined) return "";
+        if (typeof cell.value === 'object') return cell.text || (cell.value.result ? String(cell.value.result) : "");
+        return String(cell.value).trim();
+    }
+
+    // 🛠️ 修復：顏色抓取優化，預設黑色
+    function getHexColor(cell) {
+        if (cell && cell.fill && cell.fill.fgColor && cell.fill.fgColor.argb) {
+            const argb = cell.fill.fgColor.argb.toString();
+            if (argb.length >= 6) return argb.slice(-6);
         }
-        function toggleMode() { setMode(state.mode === 'pc' ? 'mobile' : 'pc'); }
-        function closePanel() { state.selectedDays = []; state.chosenTarget = null; document.getElementById('batchPanel').style.display = 'none'; renderUI(); }
+        return "000000"; // 預設黑色
+    }
 
-        function getCellVal(cell) {
-            if (!cell || cell.value === null || cell.value === undefined) return "";
-            if (typeof cell.value === 'object') return cell.text || (cell.value.result ? String(cell.value.result) : "");
-            return String(cell.value).trim();
-        }
+    async function initData() {
+        const f = document.getElementById('xlsxIn').files[0];
+        if(!f) return;
+        try {
+            document.getElementById('btnAnalyze').innerText = "⏳";
+            const workbook = new ExcelJS.Workbook();
+            await workbook.xlsx.load(await f.arrayBuffer());
+            const worksheet = workbook.getWorksheet(1);
+            state.personal = {}; state.master = {}; state.dayKeys = []; state.expanded = {}; state.changeLogs = [];
 
-        async function initData() {
-            const f = document.getElementById('xlsxIn').files[0];
-            if (!f) return;
-            try {
-                document.getElementById('btnAnalyze').innerText = "⏳";
-                const workbook = new ExcelJS.Workbook();
-                await workbook.xlsx.load(await f.arrayBuffer());
-                const worksheet = workbook.getWorksheet(1);
-                state.personal = {}; state.master = {}; state.dayKeys = []; state.expanded = {}; state.changeLogs = [];
+            let headerRowIdx = -1;
+            worksheet.eachRow((row, rowNum) => { if (headerRowIdx !== -1) return; row.eachCell(c => { if (getCellVal(c).includes("員工編號")) headerRowIdx = rowNum; }); });
+            const headerRow = worksheet.getRow(headerRowIdx);
+            headerRow.eachCell((cell, colNum) => { if (getCellVal(cell).includes("/")) state.dayKeys.push({ label: getCellVal(cell), col: colNum }); });
 
-                let headerRowIdx = -1;
-                worksheet.eachRow((row, rowNum) => { if (headerRowIdx !== -1) return; row.eachCell(c => { if (getCellVal(c).includes("員工編號")) headerRowIdx = rowNum; }); });
-                const headerRow = worksheet.getRow(headerRowIdx);
-                headerRow.eachCell((cell, colNum) => { if (getCellVal(cell).includes("/")) state.dayKeys.push({ label: getCellVal(cell), col: colNum }); });
-
-                worksheet.eachRow((row, rowNum) => {
-                    if (rowNum <= headerRowIdx) return;
-                    const name = getCellVal(row.getCell(3));
-                    const id = getCellVal(row.getCell(2)).toUpperCase();
-                    if (!id || id.includes("總計")) return;
-                    state.personal[name] = { id, schedule: {} };
-                    state.dayKeys.forEach(dk => {
-                        const cell = row.getCell(dk.col);
-                        let val = getCellVal(cell) || "D1";
-                        let hex = (cell.fill?.fgColor?.argb || "").slice(-6);
-                        state.personal[name].schedule[dk.label] = { text: val, hex: hex, isForb: EXCLUDE_COLORS.includes(hex), note: "" };
-                        const prefix = val.charAt(0).toUpperCase();
-                        if (/^[A-Z]$/.test(prefix)) {
-                            if (!state.master[dk.label]) state.master[dk.label] = {};
-                            if (!state.master[dk.label][prefix]) state.master[dk.label][prefix] = [];
-                            state.master[dk.label][prefix].push({ name, text: val });
-                        }
-                    });
-                });
-                document.getElementById('btnAnalyze').innerText = "完成"; renderUI();
-            } catch (err) { alert("讀取失敗"); }
-        }
-
-        function toM(t) { if (!t) return 0; const [h, m] = t.split(':').map(Number); return h * 60 + m; }
-        function checkSafe(pre, cur, nxt) {
-            const p = TIME_TABLE[pre?.split('/')[0]], c = TIME_TABLE[cur?.split('/')[0]], n = TIME_TABLE[nxt?.split('/')[0]];
-            if (!c) return true;
-            let ok = true;
-            if (p) ok = ok && ((toM(c[0]) + 1440) - toM(p[1])) >= 660;
-            if (n) ok = ok && ((toM(n[0]) + 1440) - toM(c[1])) >= 660;
-            return ok;
-        }
-
-        function executeBatch() {
-            const me = Object.keys(state.personal).find(n => state.personal[n].id === document.getElementById('targetId').value.toUpperCase());
-            if (!state.chosenTarget) return alert("請選取對象。");
-            if (confirm(`確定要與 ${state.chosenTarget} 對調嗎？`)) {
-                state.selectedDays.forEach(d => {
-                    const myS = state.personal[me].schedule[d], hS = state.personal[state.chosenTarget].schedule[d];
-                    const oldMyT = myS.text, oldHisT = hS.text;
-
-                    // 🚀 記錄異動
-                    state.changeLogs.push({ date: d, person: state.chosenTarget, from: oldHisT, to: oldMyT });
-
-                    myS.text = oldHisT; hS.text = oldMyT;
-                    myS.note = ` ⇄ ${state.chosenTarget}`; hS.note = ` ⇄ ${me}`;
-                });
-                updateSummary(); closePanel();
-            }
-        }
-
-        // 🚀 更新摘要清單
-        function updateSummary() {
-            const box = document.getElementById('summaryArea');
-            const list = document.getElementById('summaryList');
-            if (state.changeLogs.length === 0) { box.style.display = 'none'; return; }
-
-            box.style.display = 'block';
-            // 按人名分群
-            const groups = state.changeLogs.reduce((acc, log) => {
-                if (!acc[log.person]) acc[log.person] = [];
-                acc[log.person].push(log);
-                return acc;
-            }, {});
-
-            list.innerHTML = Object.keys(groups).map(name => `
-                <div class="summary-item">
-                    <div class="summary-name">${name}</div>
-                    <div class="summary-detail">
-                        ${groups[name].map(l => `${l.date.split('/')[1]}日: ${l.from} → ${l.to}`).join('<br>')}
-                    </div>
-                </div>
-            `).join('');
-        }
-
-        function clearChanges() { if (confirm("確定清空紀錄？")) { state.changeLogs = []; updateSummary(); renderUI(); } }
-
-        function toggleSelect(d) {
-            const labels = state.dayKeys.map(k => k.label), idx = labels.indexOf(d);
-            if (state.selectedDays.length > 0) {
-                const indices = state.selectedDays.map(day => labels.indexOf(day)).sort((a, b) => a - b);
-                if (state.selectedDays.includes(d)) state.selectedDays.splice(state.selectedDays.indexOf(d), 1);
-                else if (idx === indices[0] - 1 || idx === indices[indices.length - 1] + 1) state.selectedDays.push(d);
-                else state.selectedDays = [d];
-            } else state.selectedDays.push(d);
-
-            state.chosenTarget = null;
-            const bp = document.getElementById('batchPanel');
-            if (state.selectedDays.length > 0) {
-                bp.style.display = 'block';
-                document.getElementById('selText').innerText = state.selectedDays.length;
-                let sets = new Set();
-                state.selectedDays.forEach(day => Object.keys(state.master[day] || {}).forEach(p => { if (/^[A-Z]$/.test(p)) sets.add(p); }));
-                let opt = '<option value="">(初始) 顯示同班別名單</option>';
-                Array.from(sets).sort().forEach(p => opt += `<option value="${p}">${p} 班</option>`);
-                document.getElementById('shiftSel').innerHTML = opt;
-            } else bp.style.display = 'none';
-            renderUI();
-        }
-
-        function selectTargetPerson(name) { state.chosenTarget = name; document.getElementById('selectedTargetDisplay').innerText = `對象：${name}`; renderUI(); }
-        function toggleExpand(e, d) { e.stopPropagation(); state.expanded[d] = !state.expanded[d]; renderUI(); }
-
-        function renderUI() {
-            const area = document.getElementById('calendarArea');
-            const dayLabels = state.dayKeys.map(k => k.label);
-            const myName = Object.keys(state.personal).find(n => state.personal[n].id === document.getElementById('targetId').value.toUpperCase());
-            if (!myName || dayLabels.length === 0) return;
-
-            state.targetPrefix = document.getElementById('shiftSel')?.value || "";
-            const selectedIndices = state.selectedDays.map(d => dayLabels.indexOf(d)).sort((a, b) => a - b);
-            const firstIdx = selectedIndices[0], lastIdx = selectedIndices[selectedIndices.length - 1];
-
-            let userStats = {};
-            if (state.selectedDays.length > 0) {
-                Object.keys(state.personal).forEach(n => {
-                    if (n === myName) return;
-                    userStats[n] = { errors: [], totalMatch: 0 };
-                    state.selectedDays.forEach(d => {
-                        const myS = state.personal[myName].schedule[d], cS = state.personal[n].schedule[d];
-                        const dIdx = dayLabels.indexOf(d), target = state.targetPrefix || myS.text.charAt(0).toUpperCase();
-                        const isMatchPrefix = cS.text.charAt(0).toUpperCase() === target;
-                        let safe = checkSafe(state.personal[n].schedule[dayLabels[dIdx - 1]]?.text, myS.text, state.personal[n].schedule[dayLabels[dIdx + 1]]?.text);
-                        if (dIdx === firstIdx) safe = safe && checkSafe(state.personal[n].schedule[dayLabels[dIdx - 1]]?.text, myS.text, null);
-                        if (dIdx === lastIdx) safe = safe && checkSafe(null, myS.text, state.personal[n].schedule[dayLabels[dIdx + 1]]?.text);
-                        if (isMatchPrefix && !cS.isForb && safe) userStats[n].totalMatch++;
-                        else {
-                            let r = !isMatchPrefix ? "不符" : (cS.isForb ? "身分" : "休足");
-                            userStats[n].errors.push(`${d.split('/')[1]}日${r}`);
-                        }
-                    });
-                });
-            }
-            const commonIntersection = Object.keys(userStats).filter(n => userStats[n].totalMatch === state.selectedDays.length);
-
-            area.innerHTML = dayLabels.map(d => {
-                const isSelectedDay = state.selectedDays.includes(d), isExp = !!state.expanded[d], myS = state.personal[myName].schedule[d];
-                const currT = state.targetPrefix || myS.text.charAt(0).toUpperCase();
-                let topHTML = "", otherHTML = "", otherCount = 0;
-
-                Object.keys(state.personal).forEach(n => {
-                    if (n === myName) return;
-                    const cS = state.personal[n].schedule[d], isTop = isSelectedDay && commonIntersection.includes(n), isMatchPrefix = cS.text.charAt(0).toUpperCase() === currT;
-                    if (isTop || isMatchPrefix) {
-                        const col = cS.hex ? `#${cS.hex}` : '#000000';
-                        const isChosen = state.chosenTarget === n;
-                        const displayShift = `${cS.text}<span class="shift-note">${cS.note || ""}</span>`;
-                        if (isTop) {
-                            topHTML += `<div class="person-item perfect-match ${isChosen ? 'target-selected' : ''}" onclick="event.stopPropagation(); selectTargetPerson('${n}')">
-                                <div style="display:flex;justify-content:space-between;width:100%;align-items:center;"><span class="colored-name" style="color:${col}">${n} <small>(${displayShift})</small></span><b>✨</b></div>
-                            </div>`;
-                        } else {
-                            otherCount++; if (isExp) {
-                                let errTags = isSelectedDay ? userStats[n].errors.map(e => `<span class="error-tag">${e}</span>`).join('') : '';
-                                otherHTML += `<div class="person-item"><div style="display:flex;justify-content:space-between;width:100%;align-items:center;"><span class="colored-name" style="color:${col}">${n} <small>(${displayShift})</small></span></div><div>${errTags}</div></div>`;
-                            }
-                        }
+            worksheet.eachRow((row, rowNum) => {
+                if (rowNum <= headerRowIdx) return;
+                const name = getCellVal(row.getCell(3));
+                const id = getCellVal(row.getCell(2)).toUpperCase();
+                if (!id || id.includes("總計")) return;
+                state.personal[name] = { id, schedule: {} };
+                state.dayKeys.forEach(dk => {
+                    const cell = row.getCell(dk.col);
+                    let val = getCellVal(cell) || "D1";
+                    let hex = getHexColor(cell);
+                    state.personal[name].schedule[dk.label] = { text: val, hex: hex, isForb: EXCLUDE_COLORS.includes(hex.toUpperCase()), note: "" };
+                    const prefix = val.charAt(0).toUpperCase();
+                    if (/^[A-Z]$/.test(prefix)) {
+                        if(!state.master[dk.label]) state.master[dk.label] = {};
+                        if(!state.master[dk.label][prefix]) state.master[dk.label][prefix] = [];
+                        state.master[dk.label][prefix].push({ name, text: val });
                     }
                 });
-                const myDisplayShift = `${myS.text}<span class="shift-note">${myS.note || ""}</span>`;
-                return `<div class="day-card ${isSelectedDay ? 'selected' : ''}" onclick="toggleSelect('${d}')">
-                    <div class="date-label">${d.split('/')[1]}日<span>${myDisplayShift}</span></div>
-                    <div style="margin-top:5px;">${topHTML}<button class="btn-collapse" onclick="toggleExpand(event, '${d}')">${isExp ? '收起' : `其他(${otherCount})`}</button><div style="margin-top:4px;">${otherHTML}</div></div>
-                </div>`;
-            }).join('');
+            });
+            document.getElementById('btnAnalyze').innerText = "分析"; renderUI();
+        } catch (err) { alert("讀取失敗"); }
+    }
+
+    function toM(t) { if(!t) return 0; const [h, m] = t.split(':').map(Number); return h * 60 + m; }
+    function checkSafe(pre, cur, nxt) {
+        const p = TIME_TABLE[pre?.split('/')[0]], c = TIME_TABLE[cur?.split('/')[0]], n = TIME_TABLE[nxt?.split('/')[0]];
+        if(!c) return true;
+        let ok = true;
+        if(p) ok = ok && ((toM(c[0]) + 1440) - toM(p[1])) >= 660; 
+        if(n) ok = ok && ((toM(n[0]) + 1440) - toM(c[1])) >= 660;
+        return ok;
+    }
+
+    function executeBatch() {
+        const me = Object.keys(state.personal).find(n => state.personal[n].id === document.getElementById('targetId').value.toUpperCase());
+        if(!state.chosenTarget) return alert("請點擊 ✨ 選取對象。");
+        if(confirm(`確定要與 ${state.chosenTarget} 對調嗎？`)) {
+            state.selectedDays.forEach(d => {
+                const myS = state.personal[me].schedule[d], hS = state.personal[state.chosenTarget].schedule[d];
+                const oldMyT = myS.text, oldHisT = hS.text;
+                state.changeLogs.push({ date: d, person: state.chosenTarget, from: oldHisT, to: oldMyT });
+                myS.text = oldHisT; hS.text = oldMyT;
+                myS.note = ` ⇄ ${state.chosenTarget}`; hS.note = ` ⇄ ${me}`;
+            });
+            updateSummary(); closePanel();
         }
-    </script>
+    }
+
+    function updateSummary() {
+        const box = document.getElementById('summaryArea'), list = document.getElementById('summaryList');
+        if (state.changeLogs.length === 0) { box.style.display = 'none'; return; }
+        box.style.display = 'block';
+        const groups = state.changeLogs.reduce((acc, log) => {
+            if (!acc[log.person]) acc[log.person] = [];
+            acc[log.person].push(log); return acc;
+        }, {});
+        list.innerHTML = Object.keys(groups).map(name => `
+            <div style="margin-bottom:12px;">
+                <div class="summary-name">${name}</div>
+                <div class="summary-detail">${groups[name].map(l => `<strong>${l.date.split('/')[1]}日</strong>: ${l.from} → ${l.to}`).join('<br>')}</div>
+            </div>
+        `).join('');
+    }
+
+    function clearChanges() { if(confirm("確定清空紀錄？")) { state.changeLogs = []; updateSummary(); renderUI(); } }
+
+    function toggleSelect(d) {
+        const labels = state.dayKeys.map(k => k.label), idx = labels.indexOf(d);
+        if (state.selectedDays.length > 0) {
+            const indices = state.selectedDays.map(day => labels.indexOf(day)).sort((a,b)=>a-b);
+            if (state.selectedDays.includes(d)) state.selectedDays.splice(state.selectedDays.indexOf(d), 1);
+            else if (idx === indices[0] - 1 || idx === indices[indices.length - 1] + 1) state.selectedDays.push(d);
+            else state.selectedDays = [d];
+        } else state.selectedDays.push(d);
+        state.chosenTarget = null;
+        const bp = document.getElementById('batchPanel');
+        if(state.selectedDays.length > 0) {
+            bp.style.display = 'block';
+            document.getElementById('selText').innerText = state.selectedDays.length;
+            let sets = new Set();
+            state.selectedDays.forEach(day => Object.keys(state.master[day]||{}).forEach(p => { if(/^[A-Z]$/.test(p)) sets.add(p); }));
+            let opt = '<option value="">(初始) 顯示同班別名單</option>';
+            Array.from(sets).sort().forEach(p => opt += `<option value="${p}">${p} 班</option>`);
+            document.getElementById('shiftSel').innerHTML = opt;
+        } else bp.style.display = 'none';
+        renderUI();
+    }
+
+    function selectTargetPerson(name) { state.chosenTarget = name; document.getElementById('selectedTargetDisplay').innerText = `對象：${name}`; renderUI(); }
+    function toggleExpand(e, d) { e.stopPropagation(); state.expanded[d] = !state.expanded[d]; renderUI(); }
+
+    function renderUI() {
+        const area = document.getElementById('calendarArea');
+        const dayLabels = state.dayKeys.map(k => k.label);
+        const myName = Object.keys(state.personal).find(n => state.personal[n].id === document.getElementById('targetId').value.toUpperCase());
+        if(!myName || dayLabels.length === 0) return;
+        state.targetPrefix = document.getElementById('shiftSel')?.value || "";
+        const selectedIndices = state.selectedDays.map(d => dayLabels.indexOf(d)).sort((a,b)=>a-b);
+        const firstIdx = selectedIndices[0], lastIdx = selectedIndices[selectedIndices.length - 1];
+
+        let userStats = {};
+        if(state.selectedDays.length > 0) {
+            Object.keys(state.personal).forEach(n => {
+                if(n === myName) return;
+                userStats[n] = { errors: [], totalMatch: 0 };
+                state.selectedDays.forEach(d => {
+                    const myS = state.personal[myName].schedule[d], cS = state.personal[n].schedule[d];
+                    const dIdx = dayLabels.indexOf(d), target = state.targetPrefix || myS.text.charAt(0).toUpperCase();
+                    const isMatchPrefix = cS.text.charAt(0).toUpperCase() === target;
+                    let safe = checkSafe(state.personal[n].schedule[dayLabels[dIdx-1]]?.text, myS.text, state.personal[n].schedule[dayLabels[dIdx+1]]?.text);
+                    if (dIdx === firstIdx) safe = safe && checkSafe(state.personal[n].schedule[dayLabels[dIdx-1]]?.text, myS.text, null);
+                    if (dIdx === lastIdx) safe = safe && checkSafe(null, myS.text, state.personal[n].schedule[dayLabels[dIdx+1]]?.text);
+                    if (isMatchPrefix && !cS.isForb && safe) userStats[n].totalMatch++;
+                    else userStats[n].errors.push(`${d.split('/')[1]}日${!isMatchPrefix?'不符':(cS.isForb?'身分':'休足')}`);
+                });
+            });
+        }
+        const commonIntersection = Object.keys(userStats).filter(n => userStats[n].totalMatch === state.selectedDays.length);
+
+        area.innerHTML = dayLabels.map(d => {
+            const isSelectedDay = state.selectedDays.includes(d), isExp = !!state.expanded[d], myS = state.personal[myName].schedule[d];
+            const currT = state.targetPrefix || myS.text.charAt(0).toUpperCase();
+            let topHTML = "", otherHTML = "", otherCount = 0;
+
+            Object.keys(state.personal).forEach(n => {
+                if(n === myName) return;
+                const cS = state.personal[n].schedule[d], isTop = isSelectedDay && commonIntersection.includes(n), isMatchPrefix = cS.text.charAt(0).toUpperCase() === currT;
+                if (isTop || isMatchPrefix) {
+                    const col = `#${cS.hex}`;
+                    const isChosen = state.chosenTarget === n;
+                    const displayShift = `${cS.text}<span class="shift-note">${cS.note || ""}</span>`;
+                    if(isTop) {
+                        topHTML += `<div class="person-item perfect-match ${isChosen?'target-selected':''}" onclick="event.stopPropagation(); selectTargetPerson('${n}')">
+                            <div style="display:flex;justify-content:space-between;align-items:center;"><span style="color:${col}; font-weight:900;">${n} <small style="color:#666">(${displayShift})</small></span><b>✨</b></div>
+                        </div>`;
+                    } else { 
+                        otherCount++; if(isExp) {
+                            let errTags = isSelectedDay ? userStats[n].errors.map(e => `<span class="error-tag">${e}</span>`).join('') : '';
+                            otherHTML += `<div class="person-item"><div style="display:flex;justify-content:space-between;align-items:center;"><span style="color:${col}; font-weight:900;">${n} <small style="color:#666">(${displayShift})</small></span></div><div>${errTags}</div></div>`;
+                        }
+                    }
+                }
+            });
+            const myDisplayShift = `${myS.text}<span class="shift-note">${myS.note || ""}</span>`;
+            return `<div class="day-card ${isSelectedDay?'selected':''}" onclick="toggleSelect('${d}')">
+                <div class="date-label">${d.split('/')[1]}日<span>${myDisplayShift}</span></div>
+                <div style="margin-top:5px;">${topHTML}<button class="btn-collapse" onclick="toggleExpand(event, '${d}')" style="width:100%; border:none; background:#eee; color:#666; font-size:10px; padding:8px; border-radius:4px; cursor:pointer; margin-top:8px;">${isExp ? '收起' : `其他(${otherCount})`}</button><div style="margin-top:4px;">${otherHTML}</div></div>
+            </div>`;
+        }).join('');
+    }
+</script>
 </body>
 </html>
