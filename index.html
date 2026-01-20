@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>班表小幫手 - v3.8.8 Color Match Fix</title>
+    <title>班表小幫手 - v3.8.9 Theme Color Fix</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
     <style>
         :root { --primary: #007AFF; --danger: #ff4d4f; --safe: #2e7d32; --bg: #f0f2f5; --selected: #fff9c4; --gold: #d4a017; --white: #ffffff; }
@@ -35,7 +35,7 @@
 
 <div class="config-box">
     <div class="row-group">
-        <strong style="color:var(--primary); white-space: nowrap;">班表小幫手 v3.8.8</strong>
+        <strong style="color:var(--primary); white-space: nowrap;">班表小幫手 v3.8.9</strong>
         <div class="switch-container" onclick="toggleMode()">
             <div class="switch-slider"></div>
             <div class="switch-label">💻</div>
@@ -72,8 +72,8 @@
         "TRN": ["08:30", "17:30"], "D1": ["09:00", "18:00"], "D2": ["09:00", "18:00"], "D2A": ["09:00", "18:00"], "D3": ["09:00", "18:00"], "D3X": ["09:00", "18:00"]
     };
 
-    // 255,255,153 對應 FFFF99
-    const EXCLUDE_COLORS = ["FFFF99", "FF99CC", "99CCFF", "CCFFFF"];
+    const EXCLUDE_HEX = ["FFFF99", "FF99CC", "99CCFF", "CCFFFF", "FFCC66"];
+    const EXCLUDE_THEMES = [4, 5, 6, 7]; // 常見的副站黃/督導粉主題索引
 
     let state = { personal: {}, dayKeys: [], selectedDays: [], mode: 'pc', expanded: {}, chosenTarget: null };
 
@@ -93,21 +93,18 @@
         return ((toM(c[0]) + 1440) - pE) < 660; 
     }
 
-    // 強化顏色提取邏輯：確保取到最後 6 碼 Hex
-    function getHexColor(cell) {
+    // 取得顏色資訊物件
+    function getFullColorInfo(cell) {
         try {
             if (cell && cell.fill && cell.fill.fgColor) {
                 const fg = cell.fill.fgColor;
-                let colorStr = "";
-                if (fg.argb) colorStr = String(fg.argb);
-                else if (fg.theme !== undefined) return "THEME_COLOR"; // 主題色處理預留
-                
-                if (colorStr.length >= 6) {
-                    return colorStr.slice(-6).toUpperCase();
-                }
+                return {
+                    hex: fg.argb ? String(fg.argb).slice(-6).toUpperCase() : null,
+                    theme: fg.theme
+                };
             }
         } catch(e) {}
-        return "000000";
+        return { hex: "000000", theme: null };
     }
 
     async function initData() {
@@ -126,16 +123,20 @@
             const name = getCellVal(nameCell), id = getCellVal(row.getCell(2)).toUpperCase();
             if (!id || id.includes("總計")) return;
             
-            // 職務排除檢測
-            const bg = getHexColor(nameCell);
-            if (EXCLUDE_COLORS.includes(bg)) return;
+            const colorInfo = getFullColorInfo(nameCell);
+            
+            // 雙重過濾：如果是副站長黃 (Hex FFFF99 或 Theme 4/5)
+            if (EXCLUDE_HEX.includes(colorInfo.hex) || EXCLUDE_THEMES.includes(colorInfo.theme)) {
+                return; 
+            }
 
             state.personal[name] = { id, schedule: {} };
             state.dayKeys.forEach(dk => {
                 const cell = row.getCell(dk.col);
+                const info = getFullColorInfo(cell);
                 state.personal[name].schedule[dk.label] = { 
                     text: getCellVal(cell) || "D1", 
-                    hex: getHexColor(cell) 
+                    hex: info.hex || "000000" 
                 };
             });
         });
@@ -173,7 +174,7 @@
                 if(n === myName) return;
                 const cS = state.personal[n].schedule[d], isPerf = isSel && perfects.includes(n);
                 if (isPerf || cS.text.charAt(0).toUpperCase() === (targetPrefix || myS.text.charAt(0).toUpperCase())) {
-                    const col = (cS.hex === "000000" || cS.hex === "THEME_COLOR") ? "#000000" : `#${cS.hex}`;
+                    const col = (cS.hex === "000000") ? "#000000" : `#${cS.hex}`;
                     const item = `<div class="person-item ${isPerf?'perfect-match':''} ${state.chosenTarget===n?'target-selected':''}" onclick="event.stopPropagation(); ${isPerf?`selectTargetPerson('${n}')`:''}">
                         <div style="display:flex;justify-content:space-between;"><span class="colored-name" style="color:${col} !important;">${n} <small style="color:#666">(${cS.text})</small></span>${isPerf?'<b>✨</b>':''}</div>
                         ${isSel && !isPerf && userStats[n].errors.length ? `<div>${[...new Set(userStats[n].errors)].map(e=>`<span class="error-tag">${e}</span>`).join('')}</div>`:''}
