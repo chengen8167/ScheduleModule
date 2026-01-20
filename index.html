@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>班表小幫手 - v3.9.6 Filter Fixed</title>
+    <title>班表小幫手 - v3.9.6 Stability Fix</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
     <style>
         :root { --primary: #007AFF; --danger: #ff4d4f; --safe: #2e7d32; --bg: #f0f2f5; --selected: #fff9c4; --gold: #d4a017; --white: #ffffff; }
@@ -140,7 +140,8 @@
 
     function renderUI() {
         const area = document.getElementById('calendarArea'), labels = state.dayKeys.map(k => k.label);
-        const myName = Object.keys(state.personal).find(n => state.personal[n].id === document.getElementById('targetId').value.toUpperCase());
+        const targetIdVal = document.getElementById('targetId').value.toUpperCase();
+        const myName = Object.keys(state.personal).find(n => state.personal[n].id === targetIdVal);
         if(!myName || labels.length === 0) return;
         
         let targetPrefix = document.getElementById('shiftSel')?.value || "";
@@ -152,41 +153,48 @@
             
             state.selectedDays.forEach(d => {
                 const idx = labels.indexOf(d);
-                const myST = state.personal[myName].schedule[d].text; 
+                const myST = state.personal[myName].schedule[d].text;
                 const prevST = state.personal[n].schedule[labels[idx-1]]?.text;
                 const nextST = state.personal[n].schedule[labels[idx+1]]?.text;
                 
                 const restErr = isConflicting(prevST, myST) || isConflicting(myST, nextST);
                 if (!restErr) userStats[n].totalMatch++;
-                else userStats[n].errors.push(`${d.split('/')[1]}日休息不足`);
+                else userStats[n].errors.push(`${d.split('/')[1]}日換班後休息不足`);
             });
         });
 
-        const perfects = Object.keys(userStats).filter(n => userStats[n].totalMatch === state.selectedDays.length);
-
+        // 核心顯示邏輯：
         area.innerHTML = labels.map(d => {
             const isSel = state.selectedDays.includes(d), isExp = !!state.expanded[d], myS = state.personal[myName].schedule[d];
             let topH = "", otherH = "", otherC = 0;
             
             Object.keys(state.personal).forEach(n => {
                 if(n === myName) return;
-                const cS = state.personal[n].schedule[d], isPerf = isSel && perfects.includes(n);
+                const cS = state.personal[n].schedule[d];
                 const hisBase = cleanShift(cS.text);
                 const myBase = cleanShift(myS.text);
                 
-                // 修正篩選邏輯：
-                // 如果有選擇下拉選單 (targetPrefix)，則必須符合該字母。
-                // 如果沒選擇，則預設過濾同班別人員。
-                const currentFilter = targetPrefix || myBase.charAt(0).toUpperCase();
-                const isTypeMatch = hisBase.charAt(0).toUpperCase() === currentFilter;
+                // 1. 只有「當天有上班」的人才進入候選列表（排除 D, LEV）
+                const hasShift = !!TIME_TABLE[hisBase];
+                if (!hasShift) return;
 
-                if (isPerf || isTypeMatch) {
+                // 2. 判定 Perfect Match (僅選取天數內全無衝突)
+                const isPerf = isSel && userStats[n].totalMatch === state.selectedDays.length;
+
+                // 3. 判定目標班別篩選
+                const currentFilter = targetPrefix || myBase.charAt(0).toUpperCase();
+                const isTargetMatch = hisBase.charAt(0).toUpperCase() === currentFilter;
+
+                // 4. 顯示條件：(下拉選單符合的人) OR (完美匹配且正在選擇模式下)
+                if (isTargetMatch || isPerf) {
                     const displayColor = cS.hex ? `#${cS.hex}` : '#000000';
                     const item = `<div class="person-item ${isPerf?'perfect-match':''} ${state.chosenTarget===n?'target-selected':''}" onclick="event.stopPropagation(); ${isPerf?`selectTargetPerson('${n}')`:''}">
                         <div style="display:flex;justify-content:space-between;"><span class="colored-name" style="color:${displayColor} !important;">${n} <small style="color:#666">(${cS.text.replace(/[\r\n]+/g, " ")})</small></span>${isPerf?'<b>✨</b>':''}</div>
                         ${isSel && !isPerf && userStats[n].errors.length ? `<div>${[...new Set(userStats[n].errors)].map(e=>`<span class="error-tag">${e}</span>`).join('')}</div>`:''}
                     </div>`;
-                    if(isPerf) topH += item; else { otherC++; if(isExp) otherH += item; }
+                    
+                    if(isPerf) topH += item; 
+                    else { otherC++; if(isExp) otherH += item; }
                 }
             });
             return `<div class="day-card ${isSel?'selected':''}" onclick="toggleSelect('${d}')">
