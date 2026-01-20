@@ -3,23 +3,25 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>班表模擬器 - v3.3 - 20260120</title>
+    <title>班表模擬器 - v3.4 - 20260120</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
     <style>
         :root { --primary: #007AFF; --danger: #ff4d4f; --safe: #2e7d32; --bg: #f0f2f5; --selected: #fff9c4; --gold: #d4a017; --white: #ffffff; }
         * { box-sizing: border-box; font-family: -apple-system, sans-serif; }
-        body { margin: 0; background: var(--bg); font-size: 14px; }
+        body { margin: 0; background: var(--bg); font-size: 14px; padding-bottom: 150px; /* 預留底部空間給懸浮面板 */ }
         
+        /* 頂部固定配置 */
         .config-box { background: var(--white); padding: 12px; border-bottom: 1px solid #ddd; position: sticky; top: 0; z-index: 1000; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
         .row-group { display: flex; gap: 10px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; }
         .version-tag { font-size: 10px; color: #999; margin-left: auto; }
 
-        /* Toggle Switch */
+        /* 滑動開關 */
         .switch-container { display: flex; align-items: center; gap: 8px; background: #eee; padding: 4px; border-radius: 20px; cursor: pointer; position: relative; width: 80px; height: 32px; user-select: none; }
         .switch-label { flex: 1; text-align: center; z-index: 2; font-size: 14px; transition: 0.3s; }
         .switch-slider { position: absolute; width: 36px; height: 26px; background: var(--white); border-radius: 18px; top: 3px; left: 3px; transition: 0.3s; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
         .mode-mobile .switch-slider { left: 41px; }
 
+        /* 日曆區域佈局 */
         #calendarArea { display: grid; gap: 8px; padding: 8px; }
         .mode-pc { grid-template-columns: repeat(7, 1fr); }
         .mode-mobile { grid-template-columns: 1fr; }
@@ -30,14 +32,32 @@
         
         .person-item { padding: 6px 8px; border-radius: 4px; margin-top: 4px; font-size: 12px; border-left: 3px solid #ccc; background: #f9f9f9; display: flex; flex-direction: column; }
         .perfect-match { border-left-color: var(--gold); background: #fffdf0; font-weight: bold; border-left-width: 5px; cursor: pointer; }
-        /* 目標選中樣式 */
         .perfect-match.target-selected { background: #fff3cd; border: 2px solid var(--gold); box-shadow: 0 0 8px rgba(212, 160, 23, 0.3); }
         
         .btn-collapse { width: 100%; border: none; background: #eee; color: #666; font-size: 10px; padding: 8px; border-radius: 4px; cursor: pointer; margin-top: 8px; }
         .error-tag { font-size: 9px; background: #fff1f0; color: #cf1322; padding: 1px 4px; border-radius: 3px; border: 1px solid #ffa39e; margin-right: 2px; display: inline-block; margin-top: 2px; }
         .colored-name { font-weight: 900; text-shadow: 0.3px 0.3px 0.5px rgba(0,0,0,0.1); }
         
-        .batch-panel { background: #fffbe6; padding: 15px; border-radius: 12px; border: 2px solid #ffe58f; margin: 0 8px 10px 8px; display: none; }
+        /* 🚀 改良：懸浮對調面板 */
+        .batch-panel { 
+            position: fixed; 
+            bottom: 20px; 
+            left: 50%; 
+            transform: translateX(-50%); 
+            width: 95%; 
+            max-width: 500px; 
+            background: rgba(255, 251, 230, 0.95); 
+            backdrop-filter: blur(10px);
+            padding: 15px; 
+            border-radius: 16px; 
+            border: 2px solid #ffe58f; 
+            box-shadow: 0 -4px 20px rgba(0,0,0,0.15); 
+            z-index: 2000; 
+            display: none; 
+            animation: slideUp 0.3s ease-out;
+        }
+        @keyframes slideUp { from { bottom: -100px; opacity: 0; } to { bottom: 20px; opacity: 1; } }
+
         .btn-execute { background: var(--danger); color: white; border: none; padding: 12px; border-radius: 8px; font-weight: 900; font-size: 16px; cursor: pointer; width: 100%; margin-top: 10px; }
     </style>
 </head>
@@ -51,7 +71,7 @@
             <div class="switch-label pc-label">💻</div>
             <div class="switch-label mb-label">📱</div>
         </div>
-        <span class="version-tag">v3.3 - 20260120</span>
+        <span class="version-tag">v3.4 - 20260120</span>
     </div>
     <div class="row-group">
         <input type="file" id="xlsxIn" accept=".xlsx" style="flex:1; min-width:150px;">
@@ -61,12 +81,14 @@
 </div>
 
 <div id="batchPanel" class="batch-panel">
-    <div style="font-weight:bold; color:#856404;">📅 已選連續區間：<span id="selText">0</span> 天</div>
-    <div style="color:var(--primary); font-size:12px; margin-top:4px;">💡 請從下方日曆點擊選擇一位對象 (✨)</div>
-    <div id="selectedTargetDisplay" style="margin-top:8px; font-weight:bold; color:var(--danger);">目前對象：尚未選擇</div>
-    <div style="margin-top:8px; display:flex; align-items:center; gap:10px;">
-        <span>目標班別：</span>
-        <select id="shiftSel" onchange="renderUI()" style="padding:6px; flex:1; border-radius:5px; border:2px solid var(--primary);"></select>
+    <div style="display:flex; justify-content:space-between; align-items:center; border-bottom: 1px solid #ffe58f; padding-bottom: 8px; margin-bottom: 8px;">
+        <span style="font-weight:bold; color:#856404;">📅 已選：<span id="selText">0</span> 天</span>
+        <button onclick="closePanel()" style="background:none; border:none; color:#999; font-size:20px; cursor:pointer;">&times;</button>
+    </div>
+    <div id="selectedTargetDisplay" style="font-weight:bold; color:var(--danger); margin-bottom: 8px;">對象：尚未選擇 (點擊✨)</div>
+    <div style="display:flex; align-items:center; gap:8px;">
+        <span style="white-space:nowrap;">目標班別：</span>
+        <select id="shiftSel" onchange="renderUI()" style="padding:8px; flex:1; border-radius:8px; border:2px solid var(--primary); font-size:14px;"></select>
     </div>
     <button class="btn-execute" onclick="executeBatch()">執行批次對調</button>
 </div>
@@ -74,6 +96,7 @@
 <div id="calendarArea" class="mode-pc"></div>
 
 <script>
+    // --- 核心邏輯繼承 v3.3 ---
     const TIME_TABLE = { "E159G": ["05:15","14:45"], "F30XA": ["06:30","16:30"], "G009A": ["07:00","16:00"], "J00XA": ["10:00","20:00"], "N008A": ["14:00","22:00"], "N30XA": ["14:30","00:30"], "O30XA": ["15:30","01:30"], "D1": ["09:00","18:00"] };
     const EXCLUDE_COLORS = ["FFFF99", "FF99CC", "99CCFF", "CCFFFF"];
     let state = { master: {}, personal: {}, dayKeys: [], selectedDays: [], mode: 'pc', expanded: {}, targetPrefix: "", chosenTarget: null };
@@ -91,6 +114,14 @@
         renderUI();
     }
 
+    // 關閉面板並清除選擇
+    function closePanel() {
+        state.selectedDays = [];
+        state.chosenTarget = null;
+        document.getElementById('batchPanel').style.display = 'none';
+        renderUI();
+    }
+
     function getCellVal(cell) {
         if (!cell || cell.value === null || cell.value === undefined) return "";
         if (typeof cell.value === 'object') return cell.text || (cell.value.result ? String(cell.value.result) : "");
@@ -101,7 +132,7 @@
         const f = document.getElementById('xlsxIn').files[0];
         if(!f) return;
         try {
-            document.getElementById('btnAnalyze').innerText = "讀取中...";
+            document.getElementById('btnAnalyze').innerText = "⏳...";
             const workbook = new ExcelJS.Workbook();
             const arrayBuffer = await f.arrayBuffer();
             await workbook.xlsx.load(arrayBuffer);
@@ -165,12 +196,12 @@
             else state.selectedDays = [d];
         } else state.selectedDays.push(d);
         
-        // 重置選中對象
         state.chosenTarget = null;
         const bp = document.getElementById('batchPanel');
         if(state.selectedDays.length > 0) {
             bp.style.display = 'block';
             document.getElementById('selText').innerText = state.selectedDays.length;
+            document.getElementById('selectedTargetDisplay').innerText = `對象：尚未選擇 (點擊✨)`;
             let sets = new Set();
             state.selectedDays.forEach(day => Object.keys(state.master[day]||{}).forEach(p => sets.add(p)));
             let opt = '<option value="">(初始) 顯示同班別名單</option>';
@@ -180,10 +211,9 @@
         renderUI();
     }
 
-    // 選取對調對象
     function selectTargetPerson(name) {
         state.chosenTarget = name;
-        document.getElementById('selectedTargetDisplay').innerText = `目前對象：${name}`;
+        document.getElementById('selectedTargetDisplay').innerText = `對象：${name}`;
         renderUI();
     }
 
@@ -192,14 +222,13 @@
     function executeBatch() {
         const me = Object.keys(state.personal).find(n => state.personal[n].id === document.getElementById('targetId').value.toUpperCase());
         if(!state.chosenTarget) return alert("請先從下方清單中點擊選取一位對象（標註 ✨ 的人）。");
-        
         if(confirm(`確定要將已選日期與 ${state.chosenTarget} 對調嗎？`)) {
             state.selectedDays.forEach(d => {
                 const myS = state.personal[me].schedule[d].text, hS = state.personal[state.chosenTarget].schedule[d].text;
                 state.personal[me].schedule[d].text = hS; state.personal[state.chosenTarget].schedule[d].text = myS;
             });
             alert(`對調成功！`);
-            state.selectedDays = []; state.chosenTarget = null; renderUI();
+            closePanel();
         }
     }
 
@@ -246,7 +275,6 @@
                 if (isTop || isMatchPrefix) {
                     const col = cS.hex ? `#${cS.hex}` : '#000000';
                     const isChosen = state.chosenTarget === n;
-                    
                     if(isTop) {
                         topHTML += `<div class="person-item perfect-match ${isChosen?'target-selected':''}" onclick="event.stopPropagation(); selectTargetPerson('${n}')">
                             <div style="display:flex;justify-content:space-between;width:100%;align-items:center;">
