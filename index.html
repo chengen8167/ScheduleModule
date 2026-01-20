@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>班表小幫手 - v3.8.4 Final Strict</title>
+    <title>班表小幫手 - v3.8.5 Color Fixed</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
     <style>
         :root { --primary: #007AFF; --danger: #ff4d4f; --safe: #2e7d32; --bg: #f0f2f5; --selected: #fff9c4; --gold: #d4a017; --white: #ffffff; }
@@ -35,7 +35,7 @@
 
 <div class="config-box">
     <div class="row-group">
-        <strong style="color:var(--primary); white-space: nowrap;">班表小幫手 v3.8.4</strong>
+        <strong style="color:var(--primary); white-space: nowrap;">班表小幫手 v3.8.5</strong>
         <div class="switch-container" onclick="toggleMode()">
             <div class="switch-slider"></div>
             <div class="switch-label">💻</div>
@@ -72,7 +72,7 @@
         "TRN": ["08:30", "17:30"], "D1": ["09:00", "18:00"], "D2": ["09:00", "18:00"], "D2A": ["09:00", "18:00"], "D3": ["09:00", "18:00"], "D3X": ["09:00", "18:00"]
     };
 
-    const EXCLUDE_COLORS = ["FFFF99", "FF99CC", "99CCFF", "CCFFFF"]; // 副站、督導、TAO
+    const EXCLUDE_COLORS = ["FFFF99", "FF99CC", "99CCFF", "CCFFFF"];
 
     let state = { personal: {}, dayKeys: [], selectedDays: [], mode: 'pc', expanded: {}, chosenTarget: null };
 
@@ -92,16 +92,16 @@
         return ((toM(c[0]) + 1440) - pE) < 660; 
     }
 
-    // 取得背景色 (判斷職務)
+    // 取得背景色 (判斷職務排除用)
     function getBgColor(cell) {
         try { if (cell?.fill?.fgColor?.argb) return String(cell.fill.fgColor.argb).slice(-6).toUpperCase(); } catch(e) {}
         return "";
     }
 
-    // 取得文字顏色 (顯示 UI)
+    // 取得文字顏色 (顯示名字顏色用)
     function getHexColor(cell) {
         try {
-            if (cell?.font?.color?.argb) {
+            if (cell && cell.font && cell.font.color && cell.font.color.argb) {
                 let argb = String(cell.font.color.argb);
                 if (argb.length >= 6 && argb !== "00000000" && argb !== "FFFFFFFF") return argb.slice(-6).toUpperCase();
             }
@@ -125,13 +125,16 @@
             const name = getCellVal(nameCell), id = getCellVal(row.getCell(2)).toUpperCase();
             if (!id || id.includes("總計")) return;
             
-            // 嚴格排除指定背景色的人
+            // 背景色過濾職務
             if (EXCLUDE_COLORS.includes(getBgColor(nameCell))) return;
 
             state.personal[name] = { id, schedule: {} };
             state.dayKeys.forEach(dk => {
                 const cell = row.getCell(dk.col);
-                state.personal[name].schedule[dk.label] = { text: getCellVal(cell) || "D1", hex: getHexColor(cell) };
+                state.personal[name].schedule[dk.label] = { 
+                    text: getCellVal(cell) || "D1", 
+                    hex: getHexColor(cell) // 抓取該班別格子內的文字顏色
+                };
             });
         });
         renderUI();
