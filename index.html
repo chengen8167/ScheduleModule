@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>班表小幫手 - v3.8.3 Strict Color</title>
+    <title>班表小幫手 - v3.8.4 Final Strict</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
     <style>
         :root { --primary: #007AFF; --danger: #ff4d4f; --safe: #2e7d32; --bg: #f0f2f5; --selected: #fff9c4; --gold: #d4a017; --white: #ffffff; }
@@ -18,14 +18,12 @@
         #calendarArea { display: grid; gap: 8px; padding: 8px; }
         .mode-pc { grid-template-columns: repeat(7, 1fr); }
         .mode-mobile { grid-template-columns: 1fr; }
-        .day-card { background: var(--white); border-radius: 10px; padding: 10px; border: 2px solid transparent; min-height: 80px; transition: 0.2s; cursor: pointer; }
+        .day-card { background: var(--white); border-radius: 10px; padding: 10px; border: 2px solid transparent; min-height: 80px; cursor: pointer; }
         .day-card.selected { border-color: var(--gold); background: var(--selected); }
         .date-label { display: flex; justify-content: space-between; font-weight: 800; border-bottom: 1px solid #eee; padding-bottom: 5px; }
-        .shift-note { font-size: 9px; color: #ff7875; font-weight: normal; margin-left: 4px; font-style: italic; }
         .person-item { padding: 6px 8px; border-radius: 4px; margin-top: 4px; font-size: 12px; border-left: 3px solid #ccc; background: #f9f9f9; display: flex; flex-direction: column; }
-        /* 嚴格還原 v3.7.3 的顏色定義 */
         .colored-name { font-weight: 900; color: #000000; } 
-        .perfect-match { border-left-color: var(--gold); background: #fffdf0; font-weight: bold; border-left-width: 5px; cursor: pointer; }
+        .perfect-match { border-left-color: var(--gold); background: #fffdf0; border-left-width: 5px; }
         .perfect-match.target-selected { background: #fff3cd; border: 2px solid var(--gold); }
         .btn-collapse { width: 100%; border: none; background: #eee; color: #666; font-size: 10px; padding: 8px; border-radius: 4px; cursor: pointer; margin-top: 8px; }
         .error-tag { font-size: 9px; background: #fff1f0; color: #cf1322; padding: 1px 4px; border-radius: 3px; border: 1px solid #ffa39e; margin-right: 2px; display: inline-block; margin-top: 2px; }
@@ -37,7 +35,7 @@
 
 <div class="config-box">
     <div class="row-group">
-        <strong style="color:var(--primary); white-space: nowrap;">班表小幫手 v3.8.3</strong>
+        <strong style="color:var(--primary); white-space: nowrap;">班表小幫手 v3.8.4</strong>
         <div class="switch-container" onclick="toggleMode()">
             <div class="switch-slider"></div>
             <div class="switch-label">💻</div>
@@ -74,6 +72,8 @@
         "TRN": ["08:30", "17:30"], "D1": ["09:00", "18:00"], "D2": ["09:00", "18:00"], "D2A": ["09:00", "18:00"], "D3": ["09:00", "18:00"], "D3X": ["09:00", "18:00"]
     };
 
+    const EXCLUDE_COLORS = ["FFFF99", "FF99CC", "99CCFF", "CCFFFF"]; // 副站、督導、TAO
+
     let state = { personal: {}, dayKeys: [], selectedDays: [], mode: 'pc', expanded: {}, chosenTarget: null };
 
     function toM(t) { if(!t) return 0; const [h, m] = t.split(':').map(Number); return h * 60 + m; }
@@ -92,11 +92,17 @@
         return ((toM(c[0]) + 1440) - pE) < 660; 
     }
 
-    /* 嚴格使用 v3.7.3 的顏色獲取邏輯 */
+    // 取得背景色 (判斷職務)
+    function getBgColor(cell) {
+        try { if (cell?.fill?.fgColor?.argb) return String(cell.fill.fgColor.argb).slice(-6).toUpperCase(); } catch(e) {}
+        return "";
+    }
+
+    // 取得文字顏色 (顯示 UI)
     function getHexColor(cell) {
         try {
-            if (cell && cell.fill && cell.fill.fgColor && cell.fill.fgColor.argb) {
-                let argb = String(cell.fill.fgColor.argb);
+            if (cell?.font?.color?.argb) {
+                let argb = String(cell.font.color.argb);
                 if (argb.length >= 6 && argb !== "00000000" && argb !== "FFFFFFFF") return argb.slice(-6).toUpperCase();
             }
         } catch(e) {}
@@ -112,10 +118,16 @@
         worksheet.eachRow((row, rowNum) => { if (hIdx === -1) row.eachCell(c => { if (getCellVal(c).replace(/\s/g, "").includes("員工編號")) hIdx = rowNum; }); });
         const hRow = worksheet.getRow(hIdx);
         hRow.eachCell((cell, colNum) => { if (getCellVal(cell).includes("/")) state.dayKeys.push({ label: getCellVal(cell), col: colNum }); });
+        
         worksheet.eachRow((row, rowNum) => {
             if (rowNum <= hIdx) return;
-            const name = getCellVal(row.getCell(3)), id = getCellVal(row.getCell(2)).toUpperCase();
+            const nameCell = row.getCell(3);
+            const name = getCellVal(nameCell), id = getCellVal(row.getCell(2)).toUpperCase();
             if (!id || id.includes("總計")) return;
+            
+            // 嚴格排除指定背景色的人
+            if (EXCLUDE_COLORS.includes(getBgColor(nameCell))) return;
+
             state.personal[name] = { id, schedule: {} };
             state.dayKeys.forEach(dk => {
                 const cell = row.getCell(dk.col);
@@ -156,7 +168,6 @@
                 if(n === myName) return;
                 const cS = state.personal[n].schedule[d], isPerf = isSel && perfects.includes(n);
                 if (isPerf || cS.text.charAt(0).toUpperCase() === (targetPrefix || myS.text.charAt(0).toUpperCase())) {
-                    /* 嚴格還原 v3.7.3 的渲染邏輯：強制 color 加 !important */
                     const col = (cS.hex === "000000") ? "#000000" : `#${cS.hex}`;
                     const item = `<div class="person-item ${isPerf?'perfect-match':''} ${state.chosenTarget===n?'target-selected':''}" onclick="event.stopPropagation(); ${isPerf?`selectTargetPerson('${n}')`:''}">
                         <div style="display:flex;justify-content:space-between;"><span class="colored-name" style="color:${col} !important;">${n} <small style="color:#666">(${cS.text})</small></span>${isPerf?'<b>✨</b>':''}</div>
@@ -175,15 +186,8 @@
     function getCellVal(c) { if(!c || c.value===null) return ""; return typeof c.value==='object' ? c.text || "" : String(c.value).trim(); }
     function toggleMode() { state.mode = (state.mode === 'pc' ? 'mobile' : 'pc'); document.body.className = `mode-${state.mode}`; document.getElementById('calendarArea').className = `mode-${state.mode}`; renderUI(); }
     function toggleSelect(d) {
-        const labels = state.dayKeys.map(k => k.label), idx = labels.indexOf(d);
         if(state.selectedDays.includes(d)) state.selectedDays = state.selectedDays.filter(x=>x!==d);
-        else {
-            if (state.selectedDays.length > 0) {
-                const indices = state.selectedDays.map(day => labels.indexOf(day)).sort((a,b)=>a-b);
-                if (idx === indices[0] - 1 || idx === indices[indices.length - 1] + 1) state.selectedDays.push(d);
-                else state.selectedDays = [d];
-            } else state.selectedDays.push(d);
-        }
+        else state.selectedDays.push(d);
         document.getElementById('batchPanel').style.display = state.selectedDays.length ? 'block' : 'none';
         document.getElementById('selText').innerText = state.selectedDays.length;
         if(state.selectedDays.length > 0) {
