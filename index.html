@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>班表小幫手 - v3.6.9 Stable</title>
+    <title>班表小幫手 - v3.7.0 Strict</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
     <style>
         :root { --primary: #007AFF; --danger: #ff4d4f; --safe: #2e7d32; --bg: #f0f2f5; --selected: #fff9c4; --gold: #d4a017; --white: #ffffff; }
@@ -38,13 +38,13 @@
 
 <div class="config-box">
     <div class="row-group">
-        <strong style="color:var(--primary); white-space: nowrap;">班表小幫手 v3.6.9</strong>
+        <strong style="color:var(--primary); white-space: nowrap;">班表小幫手 v3.7.0</strong>
         <div class="switch-container" onclick="toggleMode()">
             <div class="switch-slider"></div>
             <div class="switch-label">💻</div>
             <div class="switch-label">📱</div>
         </div>
-        <span style="font-size:10px; color:#999; margin-left:auto;">Stable Build</span>
+        <span style="font-size:10px; color:#999; margin-left:auto;">Strict Mode</span>
     </div>
     <div class="row-group">
         <input type="file" id="xlsxIn" accept=".xlsx" style="flex:1; min-width:120px;">
@@ -119,7 +119,6 @@
             });
 
             if (headerRowIdx === -1) { alert("找不到標題列"); return; }
-
             const headerRow = worksheet.getRow(headerRowIdx);
             headerRow.eachCell((cell, colNum) => { if (getCellVal(cell).includes("/")) state.dayKeys.push({ label: getCellVal(cell), col: colNum }); });
             
@@ -152,6 +151,7 @@
         const pKey = preTxt.split('/')[0], cKey = curTxt.split('/')[0];
         const p = TIME_TABLE[pKey], c = TIME_TABLE[cKey];
         if(!p || !c) return false;
+        // (隔天上班時間 + 1440) - 今天下班時間 < 660分鐘 (11小時)
         return ((toM(c[0]) + 1440) - toM(p[1])) < 660; 
     }
 
@@ -252,33 +252,37 @@
                 if(n === myName) return;
                 userStats[n] = { errors: [], totalMatch: 0 };
                 
-                // 🚀 建立模擬班表（包含所有選取的日子）
+                // 🚀 建立對方的模擬班表（當他換入「我的班表」後）
                 let mockSchedules = {};
-                state.selectedDays.forEach(d => { mockSchedules[d] = state.personal[myName].schedule[d].text; });
+                state.selectedDays.forEach(d => { 
+                    mockSchedules[d] = state.personal[myName].schedule[d].text; 
+                });
 
                 if (!checkSixDays(n, mockSchedules, dayLabels)) userStats[n].errors.push(`連六規則違反`);
 
-                // 檢查選中的每一天
+                // 檢查選取中的每一天，換班後的合法性
                 state.selectedDays.forEach(d => {
                     const dIdx = dayLabels.indexOf(d);
-                    const myS = state.personal[myName].schedule[d], cS = state.personal[n].schedule[d];
+                    const myS = state.personal[myName].schedule[d]; 
+                    const cS = state.personal[n].schedule[d];
                     const target = targetPrefix || myS.text.charAt(0).toUpperCase();
                     const isMatchPrefix = cS.text.charAt(0).toUpperCase() === target;
 
-                    // 關鍵修正：當天模擬班
-                    const curShift = mockSchedules[d];
+                    // 1. 換班後的當天班別 (即我的原始班別)
+                    const curNewShift = mockSchedules[d];
                     
-                    // 前一天判定：如果前一天也在選取範圍內，用模擬班；否則用原始班
+                    // 2. 換班後的「前一天」
                     const preDay = dayLabels[dIdx-1];
                     const preShift = (preDay && mockSchedules[preDay] !== undefined) ? mockSchedules[preDay] : state.personal[n].schedule[preDay]?.text;
                     
-                    // 後一天判定：如果後一天也在選取範圍內，用模擬班；否則用原始班
+                    // 3. 換班後的「後一天」
                     const nxtDay = dayLabels[dIdx+1];
                     const nxtShift = (nxtDay && mockSchedules[nxtDay] !== undefined) ? mockSchedules[nxtDay] : state.personal[n].schedule[nxtDay]?.text;
                     
                     let restErr = false;
-                    if (isConflicting(preShift, curShift)) restErr = "前休不足";
-                    else if (isConflicting(curShift, nxtShift)) restErr = "後休不足";
+                    // 檢查：(前一天 vs 換班後當天) 以及 (換班後當天 vs 後一天)
+                    if (isConflicting(preShift, curNewShift)) restErr = "前休不足";
+                    else if (isConflicting(curNewShift, nxtShift)) restErr = "後休不足";
 
                     if (isMatchPrefix && !cS.isForb && !restErr) {
                         userStats[n].totalMatch++;
@@ -291,7 +295,6 @@
             });
         }
         
-        // 只有所有選取天數都完全沒問題的人，才標註為 ✨
         const commonIntersection = Object.keys(userStats).filter(n => userStats[n].totalMatch === state.selectedDays.length && userStats[n].errors.length === 0);
 
         area.innerHTML = dayLabels.map(d => {
