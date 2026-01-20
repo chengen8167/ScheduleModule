@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>班表小幫手 - v3.6.6 Stable</title>
+    <title>班表小幫手 - v3.6.7 Stable</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
     <style>
         :root { --primary: #007AFF; --danger: #ff4d4f; --safe: #2e7d32; --bg: #f0f2f5; --selected: #fff9c4; --gold: #d4a017; --white: #ffffff; }
@@ -38,7 +38,7 @@
 
 <div class="config-box">
     <div class="row-group">
-        <strong style="color:var(--primary); white-space: nowrap;">班表小幫手 v3.6.6</strong>
+        <strong style="color:var(--primary); white-space: nowrap;">班表小幫手 v3.6.7</strong>
         <div class="switch-container" onclick="toggleMode()">
             <div class="switch-slider"></div>
             <div class="switch-label">💻</div>
@@ -138,13 +138,12 @@
     }
 
     function toM(t) { if(!t) return 0; const [h, m] = t.split(':').map(Number); return h * 60 + m; }
-    function checkSafe(pre, cur, nxt) {
-        const p = TIME_TABLE[pre?.split('/')[0]], c = TIME_TABLE[cur?.split('/')[0]], n = TIME_TABLE[nxt?.split('/')[0]];
-        if(!c) return true;
-        let ok = true;
-        if(p) ok = ok && ((toM(c[0]) + 1440) - toM(p[1])) >= 660; 
-        if(n) ok = ok && ((toM(n[0]) + 1440) - toM(c[1])) >= 660;
-        return ok;
+    
+    // 🚀 核心邏輯：只檢查這「一對」時間是否衝突
+    function isConflicting(preEndShift, curStartShift) {
+        const p = TIME_TABLE[preEndShift?.split('/')[0]], c = TIME_TABLE[curStartShift?.split('/')[0]];
+        if(!p || !c) return false; // 其中一邊沒時間就不算衝突
+        return ((toM(c[0]) + 1440) - toM(p[1])) < 660; // 小於 11 小時即衝突
     }
 
     function executeBatch() {
@@ -222,20 +221,14 @@
     function toggleExpand(e, d) { e.stopPropagation(); state.expanded[d] = !state.expanded[d]; renderUI(); }
     function selectTargetPerson(name) { state.chosenTarget = name; document.getElementById('selectedTargetDisplay').innerText = `對象：${name}`; renderUI(); }
 
-    // 🚀 核心強化：檢查連六規則
-    function checkSixDays(name, dateIdx, dayLabels, mockSchedules) {
-        let count = 0;
-        // 往前搜
-        for (let i = dateIdx; i >= 0; i--) {
-            const shift = mockSchedules[dayLabels[i]] || state.personal[name].schedule[dayLabels[i]].text;
-            if (shift !== "D1") count++; else break;
-        }
-        // 往後搜 (不含當前起始日，避免重複計算)
-        for (let i = dateIdx + 1; i < dayLabels.length; i++) {
-            const shift = mockSchedules[dayLabels[i]] || state.personal[name].schedule[dayLabels[i]].text;
-            if (shift !== "D1") count++; else break;
-        }
-        return count <= 6;
+    function checkSixDays(name, mockSchedules, dayLabels) {
+        let maxCount = 0, currentCount = 0;
+        dayLabels.forEach(d => {
+            const s = mockSchedules[d] !== undefined ? mockSchedules[d] : state.personal[name].schedule[d].text;
+            if (s !== "D1") currentCount++; else currentCount = 0;
+            if (currentCount > maxCount) maxCount = currentCount;
+        });
+        return maxCount <= 6;
     }
 
     function renderUI() {
@@ -243,8 +236,6 @@
         const myName = Object.keys(state.personal).find(n => state.personal[n].id === document.getElementById('targetId').value.toUpperCase());
         if(!myName || dayLabels.length === 0) return;
         let targetPrefix = document.getElementById('shiftSel')?.value || "";
-        const selectedIndices = state.selectedDays.map(d => dayLabels.indexOf(d)).sort((a,b)=>a-b);
-        const firstIdx = selectedIndices[0], lastIdx = selectedIndices[selectedIndices.length - 1];
 
         let userStats = {};
         if(state.selectedDays.length > 0) {
@@ -252,37 +243,45 @@
                 if(n === myName) return;
                 userStats[n] = { errors: [], totalMatch: 0 };
                 
-                // 預擬環境：假設選中的日期都換成了我的原始班別
+                // 🚀 核心修正：正確預擬對方的「新班表」狀態
                 let mockSchedules = {};
                 state.selectedDays.forEach(d => {
                     mockSchedules[d] = state.personal[myName].schedule[d].text;
                 });
 
-                state.selectedDays.forEach(d => {
-                    const myS = state.personal[myName].schedule[d], cS = state.personal[n].schedule[d];
-                    const dIdx = dayLabels.indexOf(d), target = targetPrefix || myS.text.charAt(0).toUpperCase();
-                    const isMatchPrefix = cS.text.charAt(0).toUpperCase() === target;
-                    
-                    // 🚀 休足檢查：考慮預擬後的銜接
-                    const preShift = mockSchedules[dayLabels[dIdx-1]] || state.personal[n].schedule[dayLabels[dIdx-1]]?.text;
-                    const nxtShift = mockSchedules[dayLabels[dIdx+1]] || state.personal[n].schedule[dayLabels[dIdx+1]]?.text;
-                    let safe = checkSafe(preShift, myS.text, nxtShift);
-                    
-                    // 🚀 連六檢查
-                    let noSix = checkSixDays(n, dIdx, dayLabels, mockSchedules);
+                // 1. 檢查連六
+                if (!checkSixDays(n, mockSchedules, dayLabels)) {
+                    userStats[n].errors.push(`連六規則違反`);
+                }
 
-                    if (isMatchPrefix && !cS.isForb && safe && noSix) {
+                // 2. 逐日檢查條件
+                state.selectedDays.forEach(d => {
+                    const dIdx = dayLabels.indexOf(d);
+                    const myS = state.personal[myName].schedule[d];
+                    const cS = state.personal[n].schedule[d];
+                    const target = targetPrefix || myS.text.charAt(0).toUpperCase();
+                    const isMatchPrefix = cS.text.charAt(0).toUpperCase() === target;
+
+                    // 🚀 休足檢查：拿「模擬換入的班」去跟「前後天」比
+                    const curShift = mockSchedules[d];
+                    const preShift = mockSchedules[dayLabels[dIdx-1]] !== undefined ? mockSchedules[dayLabels[dIdx-1]] : state.personal[n].schedule[dayLabels[dIdx-1]]?.text;
+                    const nxtShift = mockSchedules[dayLabels[dIdx+1]] !== undefined ? mockSchedules[dayLabels[dIdx+1]] : state.personal[n].schedule[dayLabels[dIdx+1]]?.text;
+                    
+                    let restError = false;
+                    if (isConflicting(preShift, curShift)) restError = "前休不足";
+                    if (isConflicting(curShift, nxtShift)) restError = "後休不足";
+
+                    if (isMatchPrefix && !cS.isForb && !restError && userStats[n].errors.length === 0) {
                         userStats[n].totalMatch++;
                     } else {
                         if (!isMatchPrefix) userStats[n].errors.push(`${d.split('/')[1]}日不符`);
                         else if (cS.isForb) userStats[n].errors.push(`${d.split('/')[1]}日身分`);
-                        else if (!safe) userStats[n].errors.push(`${d.split('/')[1]}日休足`);
-                        else if (!noSix) userStats[n].errors.push(`${d.split('/')[1]}日連六`);
+                        else if (restError) userStats[n].errors.push(`${d.split('/')[1]}日${restError}`);
                     }
                 });
             });
         }
-        const commonIntersection = Object.keys(userStats).filter(n => userStats[n].totalMatch === state.selectedDays.length);
+        const commonIntersection = Object.keys(userStats).filter(n => userStats[n].totalMatch === state.selectedDays.length && userStats[n].errors.length === 0);
 
         area.innerHTML = dayLabels.map(d => {
             const isSelectedDay = state.selectedDays.includes(d), isExp = !!state.expanded[d], myS = state.personal[myName].schedule[d];
@@ -298,7 +297,7 @@
                             <div style="display:flex;justify-content:space-between;align-items:center;"><span class="colored-name" style="color:${col} !important;">${n} <small style="color:#666">(${displayShift})</small></span><b>✨</b></div>
                         </div>`;
                     } else { otherCount++; if(isExp) {
-                            let errTags = isSelectedDay ? userStats[n].errors.map(e => `<span class="error-tag">${e}</span>`).join('') : '';
+                            let errTags = isSelectedDay ? [...new Set(userStats[n].errors)].map(e => `<span class="error-tag">${e}</span>`).join('') : '';
                             otherHTML += `<div class="person-item"><div style="display:flex;justify-content:space-between;align-items:center;"><span class="colored-name" style="color:${col} !important;">${n} <small style="color:#666">(${displayShift})</small></span></div><div>${errTags}</div></div>`;
                         }
                     }
