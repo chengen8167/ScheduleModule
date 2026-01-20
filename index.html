@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>班表小幫手 - v3.9.2 Reference Attachment</title>
+    <title>班表小幫手 - v3.9.4 Fix K-Shift</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
     <style>
         :root { --primary: #007AFF; --danger: #ff4d4f; --safe: #2e7d32; --bg: #f0f2f5; --selected: #fff9c4; --gold: #d4a017; --white: #ffffff; }
@@ -35,7 +35,7 @@
 
 <div class="config-box">
     <div class="row-group">
-        <strong style="color:var(--primary); white-space: nowrap;">班表小幫手 v3.9.2</strong>
+        <strong style="color:var(--primary); white-space: nowrap;">班表小幫手 v3.9.4</strong>
         <div class="switch-container" onclick="toggleMode()">
             <div class="switch-slider"></div>
             <div class="switch-label">💻</div>
@@ -62,6 +62,7 @@
 <div id="calendarArea" class="mode-pc"></div>
 
 <script>
+    // 移除所有 D 開頭的班別，D 班將視為無工時
     const TIME_TABLE = {
         "E159g": ["05:15", "14:45"], "E159j": ["05:15", "15:00"], "E15Xa": ["05:15", "15:15"],
         "F00Xa": ["06:00", "16:00"], "F308a": ["06:30", "14:30"], "F309g": ["06:30", "16:00"], "F30Xa": ["06:30", "16:30"],
@@ -69,7 +70,7 @@
         "J00Xa": ["10:00", "20:00"], "J308a": ["10:30", "18:30"], "K008a": ["11:00", "19:00"], "L008a": ["12:00", "20:00"],
         "N008a": ["14:00", "22:00"], "N009a": ["14:00", "23:00"], "N009g": ["14:00", "23:30"], "N308a": ["14:30", "22:30"], "N309a": ["14:30", "23:30"], "N30Xa": ["14:30", "00:30"],
         "O008a": ["15:00", "23:00"], "O308a": ["15:30", "23:30"], "O309a": ["15:30", "00:30"], "O309g": ["15:30", "00:45"], "O30Xa": ["15:30", "01:30"],
-        "TRN": ["08:30", "17:30"] // 針對附件中出現的 T6 班別預設時間
+        "TRN": ["08:30", "17:30"], "T6": ["09:00", "18:00"]
     };
 
     const EXCLUDE_HEX = ["FFFF99", "FF99CC", "99CCFF", "CCFFFF", "FFCC66"];
@@ -79,11 +80,12 @@
 
     function toM(t) { if(!t) return 0; const [h, m] = t.split(':').map(Number); return h * 60 + m; }
     
-    // 統一的班別字串清洗工具
+    // 強化清洗函數：確保能抓到 K 等字母
     function cleanShift(txt) {
         if(!txt) return "";
-        // 1. 移除換行符 2. 先切 / 3. 再切 @ 4. 移除頭尾空白
-        return txt.replace(/[\r\n]+/g, "").split('/')[0].split('@')[0].trim();
+        // 先移除所有換行和回車，再根據分隔符切分，最後去空格
+        let s = String(txt).replace(/[\r\n]+/g, "").split('/')[0].split('@')[0].trim();
+        return s;
     }
 
     function isConflicting(preTxt, curTxt) {
@@ -91,8 +93,12 @@
         const pClean = cleanShift(preTxt), cClean = cleanShift(curTxt);
         const p = TIME_TABLE[pClean] || null, c = TIME_TABLE[cClean] || null;
         if(!p || !c) return false;
-        let pE = toM(p[1]); if (pE < toM(p[0])) pE += 1440;
-        return ((toM(c[0]) + 1440) - pE) < 660; 
+        
+        let pEnd = toM(p[1]);
+        if (pEnd < toM(p[0])) pEnd += 1440; 
+        
+        const cStart = toM(c[0]) + 1440; 
+        return (cStart - pEnd) < 660; 
     }
 
     function getFullColorInfo(cell) {
@@ -132,10 +138,7 @@
             state.dayKeys.forEach(dk => {
                 const cell = row.getCell(dk.col);
                 const info = getFullColorInfo(cell);
-                state.personal[name].schedule[dk.label] = { 
-                    text: getCellVal(cell) || "D1", 
-                    hex: info.hex 
-                };
+                state.personal[name].schedule[dk.label] = { text: getCellVal(cell) || "D1", hex: info.hex };
             });
         });
         renderUI();
@@ -153,15 +156,17 @@
             userStats[n] = { errors: [], totalMatch: 0 };
             state.selectedDays.forEach(d => {
                 const idx = labels.indexOf(d);
-                const myST = state.personal[myName].schedule[d].text;
-                const hisST = state.personal[n].schedule[d].text;
-                
+                const myST = state.personal[myName].schedule[d].text; 
                 const myBase = cleanShift(myST);
-                const hisBase = cleanShift(hisST);
+                const hisOrigBase = cleanShift(state.personal[n].schedule[d].text);
 
                 const target = targetPrefix || myBase.charAt(0).toUpperCase();
-                const isMatch = hisBase.charAt(0).toUpperCase() === target;
-                const restErr = isConflicting(state.personal[n].schedule[labels[idx-1]]?.text, myST) || isConflicting(myST, state.personal[n].schedule[labels[idx+1]]?.text);
+                const isMatch = hisOrigBase.charAt(0).toUpperCase() === target;
+                
+                const prevST = state.personal[n].schedule[labels[idx-1]]?.text;
+                const nextST = state.personal[n].schedule[labels[idx+1]]?.text;
+                const restErr = isConflicting(prevST, myST) || isConflicting(myST, nextST);
+                
                 if (isMatch && !restErr) userStats[n].totalMatch++;
                 else if (isMatch) userStats[n].errors.push(`${d.split('/')[1]}日休息不足`);
             });
@@ -175,8 +180,8 @@
             Object.keys(state.personal).forEach(n => {
                 if(n === myName) return;
                 const cS = state.personal[n].schedule[d], isPerf = isSel && perfects.includes(n);
-                const myBase = cleanShift(myS.text);
                 const hisBase = cleanShift(cS.text);
+                const myBase = cleanShift(myS.text);
 
                 if (isPerf || hisBase.charAt(0).toUpperCase() === (targetPrefix || myBase.charAt(0).toUpperCase())) {
                     const displayColor = cS.hex ? `#${cS.hex}` : '#000000';
@@ -221,10 +226,12 @@
                 const txt = p.schedule[day]?.text;
                 if(txt) {
                     const clean = cleanShift(txt);
-                    if(/^[A-Z]/.test(clean)) sets.add(clean.charAt(0).toUpperCase());
+                    // 強化偵測：排除 D 開頭，並確保抓到第一個字母
+                    if(/^[A-CE-Z]/.test(clean)) sets.add(clean.charAt(0).toUpperCase());
                 }
             }));
             let opt = '<option value="">(初始) 顯示同班別名單</option>';
+            // 排序後生成下拉選單
             Array.from(sets).sort().forEach(p => opt += `<option value="${p}">${p} 班</option>`);
             document.getElementById('shiftSel').innerHTML = opt;
         }
