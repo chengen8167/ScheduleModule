@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>班表小幫手 - v3.8.7 Final Fixed</title>
+    <title>班表小幫手 - v3.8.8 Color Match Fix</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
     <style>
         :root { --primary: #007AFF; --danger: #ff4d4f; --safe: #2e7d32; --bg: #f0f2f5; --selected: #fff9c4; --gold: #d4a017; --white: #ffffff; }
@@ -35,7 +35,7 @@
 
 <div class="config-box">
     <div class="row-group">
-        <strong style="color:var(--primary); white-space: nowrap;">班表小幫手 v3.8.7</strong>
+        <strong style="color:var(--primary); white-space: nowrap;">班表小幫手 v3.8.8</strong>
         <div class="switch-container" onclick="toggleMode()">
             <div class="switch-slider"></div>
             <div class="switch-label">💻</div>
@@ -72,6 +72,7 @@
         "TRN": ["08:30", "17:30"], "D1": ["09:00", "18:00"], "D2": ["09:00", "18:00"], "D2A": ["09:00", "18:00"], "D3": ["09:00", "18:00"], "D3X": ["09:00", "18:00"]
     };
 
+    // 255,255,153 對應 FFFF99
     const EXCLUDE_COLORS = ["FFFF99", "FF99CC", "99CCFF", "CCFFFF"];
 
     let state = { personal: {}, dayKeys: [], selectedDays: [], mode: 'pc', expanded: {}, chosenTarget: null };
@@ -92,12 +93,18 @@
         return ((toM(c[0]) + 1440) - pE) < 660; 
     }
 
-    // 嚴格還原 v3.8.3 提取儲存格填充色的邏輯
+    // 強化顏色提取邏輯：確保取到最後 6 碼 Hex
     function getHexColor(cell) {
         try {
-            if (cell && cell.fill && cell.fill.fgColor && cell.fill.fgColor.argb) {
-                let argb = String(cell.fill.fgColor.argb);
-                if (argb.length >= 6 && argb !== "00000000" && argb !== "FFFFFFFF") return argb.slice(-6).toUpperCase();
+            if (cell && cell.fill && cell.fill.fgColor) {
+                const fg = cell.fill.fgColor;
+                let colorStr = "";
+                if (fg.argb) colorStr = String(fg.argb);
+                else if (fg.theme !== undefined) return "THEME_COLOR"; // 主題色處理預留
+                
+                if (colorStr.length >= 6) {
+                    return colorStr.slice(-6).toUpperCase();
+                }
             }
         } catch(e) {}
         return "000000";
@@ -119,15 +126,17 @@
             const name = getCellVal(nameCell), id = getCellVal(row.getCell(2)).toUpperCase();
             if (!id || id.includes("總計")) return;
             
-            // 職務排除：檢查姓名背景色
+            // 職務排除檢測
             const bg = getHexColor(nameCell);
             if (EXCLUDE_COLORS.includes(bg)) return;
 
             state.personal[name] = { id, schedule: {} };
             state.dayKeys.forEach(dk => {
                 const cell = row.getCell(dk.col);
-                // 讀取班別儲存格背景填充色
-                state.personal[name].schedule[dk.label] = { text: getCellVal(cell) || "D1", hex: getHexColor(cell) };
+                state.personal[name].schedule[dk.label] = { 
+                    text: getCellVal(cell) || "D1", 
+                    hex: getHexColor(cell) 
+                };
             });
         });
         renderUI();
@@ -164,8 +173,7 @@
                 if(n === myName) return;
                 const cS = state.personal[n].schedule[d], isPerf = isSel && perfects.includes(n);
                 if (isPerf || cS.text.charAt(0).toUpperCase() === (targetPrefix || myS.text.charAt(0).toUpperCase())) {
-                    // 將填充色應用到文字顏色顯示 (或可改為 background)
-                    const col = (cS.hex === "000000") ? "#000000" : `#${cS.hex}`;
+                    const col = (cS.hex === "000000" || cS.hex === "THEME_COLOR") ? "#000000" : `#${cS.hex}`;
                     const item = `<div class="person-item ${isPerf?'perfect-match':''} ${state.chosenTarget===n?'target-selected':''}" onclick="event.stopPropagation(); ${isPerf?`selectTargetPerson('${n}')`:''}">
                         <div style="display:flex;justify-content:space-between;"><span class="colored-name" style="color:${col} !important;">${n} <small style="color:#666">(${cS.text})</small></span>${isPerf?'<b>✨</b>':''}</div>
                         ${isSel && !isPerf && userStats[n].errors.length ? `<div>${[...new Set(userStats[n].errors)].map(e=>`<span class="error-tag">${e}</span>`).join('')}</div>`:''}
@@ -183,7 +191,6 @@
     function getCellVal(c) { if(!c || c.value===null) return ""; return typeof c.value==='object' ? c.text || "" : String(c.value).trim(); }
     function toggleMode() { state.mode = (state.mode === 'pc' ? 'mobile' : 'pc'); document.body.className = `mode-${state.mode}`; document.getElementById('calendarArea').className = `mode-${state.mode}`; renderUI(); }
     
-    // 嚴格補回日期連續限制邏輯
     function toggleSelect(d) {
         const labels = state.dayKeys.map(k => k.label), idx = labels.indexOf(d);
         if(state.selectedDays.includes(d)) {
@@ -191,11 +198,10 @@
         } else {
             if (state.selectedDays.length > 0) {
                 const indices = state.selectedDays.map(day => labels.indexOf(day)).sort((a,b)=>a-b);
-                // 檢查是否與現有選中日期的頭或尾相鄰
                 if (idx === indices[0] - 1 || idx === indices[indices.length - 1] + 1) {
                     state.selectedDays.push(d);
                 } else {
-                    state.selectedDays = [d]; // 不連續則重設為單選
+                    state.selectedDays = [d];
                 }
             } else {
                 state.selectedDays.push(d);
@@ -203,8 +209,6 @@
         }
         document.getElementById('batchPanel').style.display = state.selectedDays.length ? 'block' : 'none';
         document.getElementById('selText').innerText = state.selectedDays.length;
-        
-        // 更新下拉選單
         if(state.selectedDays.length > 0) {
             let sets = new Set();
             state.selectedDays.forEach(day => Object.values(state.personal).forEach(p => { 
