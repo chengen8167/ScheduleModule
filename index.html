@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>班表小幫手 - v3.6.7 Stable (Fix)</title>
+    <title>班表小幫手 - v3.6.8 Stable</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
     <style>
         :root { --primary: #007AFF; --danger: #ff4d4f; --safe: #2e7d32; --bg: #f0f2f5; --selected: #fff9c4; --gold: #d4a017; --white: #ffffff; }
@@ -38,7 +38,7 @@
 
 <div class="config-box">
     <div class="row-group">
-        <strong style="color:var(--primary); white-space: nowrap;">班表小幫手 v3.6.7 (修正版)</strong>
+        <strong style="color:var(--primary); white-space: nowrap;">班表小幫手 v3.6.8</strong>
         <div class="switch-container" onclick="toggleMode()">
             <div class="switch-slider"></div>
             <div class="switch-label">💻</div>
@@ -74,6 +74,7 @@
 <div id="calendarArea" class="mode-pc"></div>
 
 <script>
+    // 原始時間表定義
     const TIME_TABLE = { "E159G": ["05:15","14:45"], "F30XA": ["06:30","16:30"], "G009A": ["07:00","16:00"], "J00XA": ["10:00","20:00"], "N008A": ["14:00","22:00"], "N30XA": ["14:30","00:30"], "O30XA": ["15:30","01:30"], "D1": ["09:00","18:00"] };
     const EXCLUDE_COLORS = ["FFFF99", "FF99CC", "99CCFF", "CCFFFF"];
     let state = { master: {}, personal: {}, dayKeys: [], selectedDays: [], mode: 'pc', expanded: {}, chosenTarget: null, changeLogs: [] };
@@ -113,7 +114,6 @@
             state.personal = {}; state.master = {}; state.dayKeys = []; state.changeLogs = []; state.expanded = {};
             
             let headerRowIdx = -1;
-            // 修正：更強健的標題定位 (去空白)
             worksheet.eachRow((row, rowNum) => { 
                 if (headerRowIdx !== -1) return; 
                 row.eachCell(c => { 
@@ -121,7 +121,7 @@
                 }); 
             });
 
-            if (headerRowIdx === -1) { alert("找不到標題列，請確認 Excel 中有『員工編號』欄位"); return; }
+            if (headerRowIdx === -1) { alert("找不到標題列"); return; }
 
             const headerRow = worksheet.getRow(headerRowIdx);
             headerRow.eachCell((cell, colNum) => { if (getCellVal(cell).includes("/")) state.dayKeys.push({ label: getCellVal(cell), col: colNum }); });
@@ -145,19 +145,18 @@
                 });
             });
             renderUI();
-        } catch (err) { alert("讀取失敗，請確認檔案格式正確。"); }
+        } catch (err) { alert("讀取失敗"); }
     }
 
     function toM(t) { if(!t) return 0; const [h, m] = t.split(':').map(Number); return h * 60 + m; }
     
-    // 🚀 核心邏輯修正：加入空值判斷 (Safe Access)
-    function isConflicting(preEndShift, curStartShift) {
-        if (!preEndShift || !curStartShift) return false;
-        const pKey = preEndShift.split('/')[0];
-        const cKey = curStartShift.split('/')[0];
+    // 🚀 核心邏輯：修正後更安全的休足判斷
+    function isConflicting(preTxt, curTxt) {
+        if (!preTxt || !curTxt) return false;
+        const pKey = preTxt.split('/')[0], cKey = curTxt.split('/')[0];
         const p = TIME_TABLE[pKey], c = TIME_TABLE[cKey];
         if(!p || !c) return false;
-        return ((toM(c[0]) + 1440) - toM(p[1])) < 660;
+        return ((toM(c[0]) + 1440) - toM(p[1])) < 660; 
     }
 
     function executeBatch() {
@@ -256,18 +255,20 @@
             Object.keys(state.personal).forEach(n => {
                 if(n === myName) return;
                 userStats[n] = { errors: [], totalMatch: 0 };
+                
+                // 預擬換班後的新班表
                 let mockSchedules = {};
                 state.selectedDays.forEach(d => { mockSchedules[d] = state.personal[myName].schedule[d].text; });
 
-                if (!checkSixDays(n, mockSchedules, dayLabels)) { userStats[n].errors.push(`連六規則違反`); }
+                if (!checkSixDays(n, mockSchedules, dayLabels)) userStats[n].errors.push(`連六規則違反`);
 
                 state.selectedDays.forEach(d => {
                     const dIdx = dayLabels.indexOf(d);
-                    const myS = state.personal[myName].schedule[d];
-                    const cS = state.personal[n].schedule[d];
+                    const myS = state.personal[myName].schedule[d], cS = state.personal[n].schedule[d];
                     const target = targetPrefix || myS.text.charAt(0).toUpperCase();
                     const isMatchPrefix = cS.text.charAt(0).toUpperCase() === target;
 
+                    // 跨日判斷：拿對方「換完後」的班去跟他的前後天比
                     const curShift = mockSchedules[d];
                     const preShift = mockSchedules[dayLabels[dIdx-1]] !== undefined ? mockSchedules[dayLabels[dIdx-1]] : state.personal[n].schedule[dayLabels[dIdx-1]]?.text;
                     const nxtShift = mockSchedules[dayLabels[dIdx+1]] !== undefined ? mockSchedules[dayLabels[dIdx+1]] : state.personal[n].schedule[dayLabels[dIdx+1]]?.text;
@@ -279,7 +280,7 @@
                     if (isMatchPrefix && !cS.isForb && !restError && userStats[n].errors.length === 0) {
                         userStats[n].totalMatch++;
                     } else {
-                        if (!isMatchPrefix) userStats[n].errors.push(`${d.split('/')[1]}日不符`);
+                        if (!isMatchPrefix) userStats[n].errors.push(`${d.split('/')[1]}日班別`);
                         else if (cS.isForb) userStats[n].errors.push(`${d.split('/')[1]}日身分`);
                         else if (restError) userStats[n].errors.push(`${d.split('/')[1]}日${restError}`);
                     }
