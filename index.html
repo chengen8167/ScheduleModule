@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>班表小幫手 - v3.8.6 Final Color</title>
+    <title>班表小幫手 - v3.8.7 Final Fixed</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
     <style>
         :root { --primary: #007AFF; --danger: #ff4d4f; --safe: #2e7d32; --bg: #f0f2f5; --selected: #fff9c4; --gold: #d4a017; --white: #ffffff; }
@@ -22,7 +22,7 @@
         .day-card.selected { border-color: var(--gold); background: var(--selected); }
         .date-label { display: flex; justify-content: space-between; font-weight: 800; border-bottom: 1px solid #eee; padding-bottom: 5px; }
         .person-item { padding: 6px 8px; border-radius: 4px; margin-top: 4px; font-size: 12px; border-left: 3px solid #ccc; background: #f9f9f9; display: flex; flex-direction: column; }
-        .colored-name { font-weight: 900; color: #000000; } 
+        .colored-name { font-weight: 900; } 
         .perfect-match { border-left-color: var(--gold); background: #fffdf0; font-weight: bold; border-left-width: 5px; cursor: pointer; }
         .perfect-match.target-selected { background: #fff3cd; border: 2px solid var(--gold); }
         .btn-collapse { width: 100%; border: none; background: #eee; color: #666; font-size: 10px; padding: 8px; border-radius: 4px; cursor: pointer; margin-top: 8px; }
@@ -35,7 +35,7 @@
 
 <div class="config-box">
     <div class="row-group">
-        <strong style="color:var(--primary); white-space: nowrap;">班表小幫手 v3.8.6</strong>
+        <strong style="color:var(--primary); white-space: nowrap;">班表小幫手 v3.8.7</strong>
         <div class="switch-container" onclick="toggleMode()">
             <div class="switch-slider"></div>
             <div class="switch-label">💻</div>
@@ -92,18 +92,11 @@
         return ((toM(c[0]) + 1440) - pE) < 660; 
     }
 
-    // 取得背景色 (判斷職務排除)
-    function getBgColor(cell) {
-        try { if (cell?.fill?.fgColor?.argb) return String(cell.fill.fgColor.argb).slice(-6).toUpperCase(); } catch(e) {}
-        return "";
-    }
-
-    // 取得文字顏色 (對應 v3.8.3 的 getHexColor 但修正為讀取字體)
+    // 嚴格還原 v3.8.3 提取儲存格填充色的邏輯
     function getHexColor(cell) {
         try {
-            // 如果儲存格有設定文字顏色
-            if (cell?.font?.color?.argb) {
-                let argb = String(cell.font.color.argb);
+            if (cell && cell.fill && cell.fill.fgColor && cell.fill.fgColor.argb) {
+                let argb = String(cell.fill.fgColor.argb);
                 if (argb.length >= 6 && argb !== "00000000" && argb !== "FFFFFFFF") return argb.slice(-6).toUpperCase();
             }
         } catch(e) {}
@@ -126,16 +119,15 @@
             const name = getCellVal(nameCell), id = getCellVal(row.getCell(2)).toUpperCase();
             if (!id || id.includes("總計")) return;
             
-            // 排除背景色為 副站、督導、TAO 的人
-            if (EXCLUDE_COLORS.includes(getBgColor(nameCell))) return;
+            // 職務排除：檢查姓名背景色
+            const bg = getHexColor(nameCell);
+            if (EXCLUDE_COLORS.includes(bg)) return;
 
             state.personal[name] = { id, schedule: {} };
             state.dayKeys.forEach(dk => {
                 const cell = row.getCell(dk.col);
-                state.personal[name].schedule[dk.label] = { 
-                    text: getCellVal(cell) || "D1", 
-                    hex: getHexColor(cell) // 這裡抓取文字顏色
-                };
+                // 讀取班別儲存格背景填充色
+                state.personal[name].schedule[dk.label] = { text: getCellVal(cell) || "D1", hex: getHexColor(cell) };
             });
         });
         renderUI();
@@ -143,8 +135,7 @@
 
     function renderUI() {
         const area = document.getElementById('calendarArea'), labels = state.dayKeys.map(k => k.label);
-        const myId = document.getElementById('targetId').value.toUpperCase();
-        const myName = Object.keys(state.personal).find(n => state.personal[n].id === myId);
+        const myName = Object.keys(state.personal).find(n => state.personal[n].id === document.getElementById('targetId').value.toUpperCase());
         if(!myName || labels.length === 0) return;
         let targetPrefix = document.getElementById('shiftSel')?.value || "";
 
@@ -173,6 +164,7 @@
                 if(n === myName) return;
                 const cS = state.personal[n].schedule[d], isPerf = isSel && perfects.includes(n);
                 if (isPerf || cS.text.charAt(0).toUpperCase() === (targetPrefix || myS.text.charAt(0).toUpperCase())) {
+                    // 將填充色應用到文字顏色顯示 (或可改為 background)
                     const col = (cS.hex === "000000") ? "#000000" : `#${cS.hex}`;
                     const item = `<div class="person-item ${isPerf?'perfect-match':''} ${state.chosenTarget===n?'target-selected':''}" onclick="event.stopPropagation(); ${isPerf?`selectTargetPerson('${n}')`:''}">
                         <div style="display:flex;justify-content:space-between;"><span class="colored-name" style="color:${col} !important;">${n} <small style="color:#666">(${cS.text})</small></span>${isPerf?'<b>✨</b>':''}</div>
@@ -190,11 +182,29 @@
 
     function getCellVal(c) { if(!c || c.value===null) return ""; return typeof c.value==='object' ? c.text || "" : String(c.value).trim(); }
     function toggleMode() { state.mode = (state.mode === 'pc' ? 'mobile' : 'pc'); document.body.className = `mode-${state.mode}`; document.getElementById('calendarArea').className = `mode-${state.mode}`; renderUI(); }
+    
+    // 嚴格補回日期連續限制邏輯
     function toggleSelect(d) {
-        if(state.selectedDays.includes(d)) state.selectedDays = state.selectedDays.filter(x=>x!==d);
-        else state.selectedDays.push(d);
+        const labels = state.dayKeys.map(k => k.label), idx = labels.indexOf(d);
+        if(state.selectedDays.includes(d)) {
+            state.selectedDays = state.selectedDays.filter(x=>x!==d);
+        } else {
+            if (state.selectedDays.length > 0) {
+                const indices = state.selectedDays.map(day => labels.indexOf(day)).sort((a,b)=>a-b);
+                // 檢查是否與現有選中日期的頭或尾相鄰
+                if (idx === indices[0] - 1 || idx === indices[indices.length - 1] + 1) {
+                    state.selectedDays.push(d);
+                } else {
+                    state.selectedDays = [d]; // 不連續則重設為單選
+                }
+            } else {
+                state.selectedDays.push(d);
+            }
+        }
         document.getElementById('batchPanel').style.display = state.selectedDays.length ? 'block' : 'none';
         document.getElementById('selText').innerText = state.selectedDays.length;
+        
+        // 更新下拉選單
         if(state.selectedDays.length > 0) {
             let sets = new Set();
             state.selectedDays.forEach(day => Object.values(state.personal).forEach(p => { 
@@ -207,6 +217,7 @@
         }
         renderUI();
     }
+    
     function toggleExpand(e,d){ e.stopPropagation(); state.expanded[d]=!state.expanded[d]; renderUI(); }
     function selectTargetPerson(n){ state.chosenTarget=n; document.getElementById('selectedTargetDisplay').innerText=`對象：${n}`; renderUI(); }
     function closePanel() { state.selectedDays=[]; state.chosenTarget=null; document.getElementById('batchPanel').style.display='none'; renderUI(); }
