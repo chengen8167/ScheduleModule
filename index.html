@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>班表小幫手 - v3.7.6 Stable</title>
+    <title>班表小幫手 - v3.7.7 Stable</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
     <style>
         :root { --primary: #007AFF; --danger: #ff4d4f; --safe: #2e7d32; --bg: #f0f2f5; --selected: #fff9c4; --gold: #d4a017; --white: #ffffff; }
@@ -30,7 +30,7 @@
 
 <div class="config-box">
     <div class="row-group">
-        <strong style="color:var(--primary);">班表 v3.7.6</strong>
+        <strong style="color:var(--primary);">班表 v3.7.7</strong>
         <div class="switch-container" onclick="toggleMode()">
             <div class="switch-slider"></div>
             <div class="switch-label" style="z-index:2; flex:1; text-align:center;">💻</div>
@@ -40,16 +40,16 @@
     <div class="row-group">
         <input type="file" id="xlsxIn" accept=".xlsx">
         <input type="text" id="targetId" value="A022994" style="width:80px; text-align:center;">
-        <button onclick="initData()" style="background:var(--safe); color:white; border:none; padding:8px 12px; border-radius:8px;">分析</button>
+        <button onclick="initData()" style="background:var(--safe); color:white; border:none; padding:8px 12px; border-radius:8px; font-weight:bold;">分析</button>
     </div>
 </div>
 
 <div id="calendarArea"></div>
 
 <div id="batchPanel" class="batch-panel">
-    <div style="display:flex; justify-content:space-between; margin-bottom:10px;"><b id="selText">已選 0 天</b><button onclick="closePanel()">關閉</button></div>
+    <div style="display:flex; justify-content:space-between; margin-bottom:10px;"><b id="selText">已選 0 天</b><button onclick="closePanel()" style="border:none; background:none; color:#999;">關閉</button></div>
     <select id="shiftSel" onchange="renderUI()" style="width:100%; padding:10px; margin-bottom:10px; border-radius:8px;"></select>
-    <button onclick="alert('換班檢核完成，請確認✨名單')" style="width:100%; background:var(--danger); color:white; border:none; padding:12px; border-radius:8px;">執行模擬</button>
+    <button onclick="alert('檢核完畢')" style="width:100%; background:var(--danger); color:white; border:none; padding:12px; border-radius:8px; font-weight:bold;">執行模擬</button>
 </div>
 
 <script>
@@ -58,7 +58,11 @@
     let state = { master: {}, personal: {}, dayKeys: [], selectedDays: [], mode: 'pc', expanded: {} };
 
     function toM(t) { if(!t) return 0; const [h, m] = t.split(':').map(Number); return h * 60 + m; }
-    function getShift(txt) { return (txt && typeof txt === 'string') ? txt.trim().charAt(0).toUpperCase() : null; }
+    function getShift(txt) { 
+        if (!txt) return null;
+        const s = String(txt).trim();
+        return s ? s.charAt(0).toUpperCase() : null;
+    }
     function isConflicting(preS, curS) {
         const p = TIME_TABLE[getShift(preS)], c = TIME_TABLE[getShift(curS)];
         if(!p || !c) return false;
@@ -68,65 +72,58 @@
 
     async function initData() {
         const f = document.getElementById('xlsxIn').files[0];
-        if(!f) return alert("請先選取 Excel 檔案");
-        
+        if(!f) return;
         try {
             const workbook = new ExcelJS.Workbook();
-            const arrayBuffer = await f.arrayBuffer();
-            await workbook.xlsx.load(arrayBuffer).catch(e => { throw new Error("ExcelJS 載入核心失敗：" + e.message); });
-            
+            await workbook.xlsx.load(await f.arrayBuffer());
             const worksheet = workbook.getWorksheet(1);
-            if(!worksheet) throw new Error("找不到工作表 (Worksheet 1)");
-
             state.personal = {}; state.dayKeys = []; state.selectedDays = [];
             let hIdx = -1;
             
-            // 掃描標題列
             worksheet.eachRow((r, n) => {
                 if(hIdx !== -1) return;
                 r.eachCell(c => {
-                    const val = String(c.value || "");
-                    if(val.includes("員工編號")) hIdx = n;
+                    if(c && c.value && String(c.value).includes("員工編號")) hIdx = n;
                 });
             });
 
-            if(hIdx === -1) throw new Error("在 Excel 中找不到「員工編號」欄位，請檢查檔案內容。");
+            if(hIdx === -1) { alert("找不到標題列"); return; }
 
-            // 抓日期
             worksheet.getRow(hIdx).eachCell((c, n) => {
-                const v = String(c.value || "");
-                if(v.includes("/")) state.dayKeys.push({label: v.trim(), col: n});
+                const v = c && c.value ? String(c.value).trim() : "";
+                if(v.includes("/")) state.dayKeys.push({label: v, col: n});
             });
 
-            // 抓人員
             worksheet.eachRow((r, n) => {
                 if(n <= hIdx) return;
-                const id = String(r.getCell(2).value || "").toUpperCase().trim();
-                const name = String(r.getCell(3).value || "").trim();
+                const idVal = r.getCell(2).value;
+                const nameVal = r.getCell(3).value;
+                const id = idVal ? String(idVal).toUpperCase().trim() : "";
+                const name = nameVal ? String(nameVal).trim() : "";
+                
                 if(!id || id === "NULL" || id.includes("總計")) return;
 
                 state.personal[name] = { id, schedule: {} };
                 state.dayKeys.forEach(dk => {
                     const cell = r.getCell(dk.col);
-                    const val = (cell.text || String(cell.value || "")).trim() || "D1";
+                    const val = cell ? (cell.text || String(cell.value || "")).trim() : "D1";
                     let hex = "000000";
-                    try { if(cell.fill && cell.fill.fgColor && cell.fill.fgColor.argb) hex = cell.fill.fgColor.argb.slice(-6).toUpperCase(); } catch(e){}
-                    state.personal[name].schedule[dk.label] = { text: val, hex, isForb: EXCLUDE_COLORS.includes(hex) };
+                    try { 
+                        if(cell && cell.fill && cell.fill.fgColor && cell.fill.fgColor.argb) 
+                            hex = String(cell.fill.fgColor.argb).slice(-6).toUpperCase(); 
+                    } catch(e){}
+                    state.personal[name].schedule[dk.label] = { text: val || "D1", hex, isForb: EXCLUDE_COLORS.includes(hex) };
                 });
             });
-
             renderUI();
-        } catch (e) {
-            alert("讀取失敗原因：\n" + e.message);
-            console.error(e);
-        }
+        } catch (e) { alert("錯誤：" + e.message); }
     }
 
     function renderUI() {
         const area = document.getElementById('calendarArea');
         const myId = document.getElementById('targetId').value.toUpperCase();
         const myName = Object.keys(state.personal).find(n => state.personal[n].id === myId);
-        if(!myName) { area.innerHTML = "請先分析檔案並確認員工編號。"; return; }
+        if(!myName) { area.innerHTML = "尚未載入或編號錯誤"; return; }
 
         const labels = state.dayKeys.map(k => k.label);
         let stats = {};
@@ -143,7 +140,7 @@
                 labels.forEach((d, i) => {
                     if(i === 0) return;
                     if(isConflicting(mock[labels[i-1]], mock[d])) {
-                        stats[n].errors.push(`${d.split('/')[1]}日休息不足`);
+                        stats[n].errors.push(`${d.split('/')[1]}日不足`);
                         if(state.selectedDays.includes(d) || state.selectedDays.includes(labels[i-1])) stats[n].canEx = false;
                     }
                 });
