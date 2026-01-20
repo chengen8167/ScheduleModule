@@ -3,72 +3,99 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>班表小幫手 - v3.7.7 Stable</title>
+    <title>班表小幫手 v3.7.8</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
     <style>
         :root { --primary: #007AFF; --danger: #ff4d4f; --safe: #2e7d32; --bg: #f0f2f5; --selected: #fff9c4; --gold: #d4a017; --white: #ffffff; }
-        * { box-sizing: border-box; font-family: -apple-system, sans-serif; }
+        * { box-sizing: border-box; font-family: -apple-system, "Helvetica Neue", sans-serif; }
         body { margin: 0; background: var(--bg); font-size: 14px; padding-bottom: 200px; }
+        
+        /* 原 v3.6.7 完整 UI 樣式 */
         .config-box { background: var(--white); padding: 12px; border-bottom: 1px solid #ddd; position: sticky; top: 0; z-index: 1000; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
         .row-group { display: flex; gap: 10px; align-items: center; margin-bottom: 8px; flex-wrap: nowrap; }
-        .switch-container { flex-shrink: 0; display: flex; align-items: center; gap: 4px; background: #eee; padding: 4px; border-radius: 20px; cursor: pointer; position: relative; width: 80px; height: 32px; }
+        .switch-container { flex-shrink: 0; display: flex; align-items: center; gap: 4px; background: #eee; padding: 4px; border-radius: 20px; cursor: pointer; position: relative; width: 80px; height: 32px; user-select: none; }
+        .switch-label { flex: 1; text-align: center; z-index: 2; font-size: 14px; }
         .switch-slider { position: absolute; width: 36px; height: 26px; background: var(--white); border-radius: 18px; top: 3px; left: 3px; transition: 0.3s; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
         .mode-mobile .switch-slider { left: 41px; }
+
+        .summary-box { background: #fff; margin: 8px; padding: 12px; border-radius: 10px; border-left: 5px solid var(--primary); box-shadow: 0 2px 5px rgba(0,0,0,0.05); display: none; }
         #calendarArea { display: grid; gap: 8px; padding: 8px; }
         .mode-pc #calendarArea { grid-template-columns: repeat(7, 1fr); }
         .mode-mobile #calendarArea { grid-template-columns: 1fr; }
-        .day-card { background: var(--white); border-radius: 10px; padding: 10px; border: 2px solid transparent; min-height: 80px; transition: 0.2s; cursor: pointer; }
+
+        .day-card { background: var(--white); border-radius: 10px; padding: 10px; border: 2px solid transparent; min-height: 80px; transition: 0.2s; cursor: pointer; position: relative; }
         .day-card.selected { border-color: var(--gold); background: var(--selected); }
-        .date-label { display: flex; justify-content: space-between; font-weight: 800; border-bottom: 1px solid #eee; padding-bottom: 5px; }
-        .person-item { padding: 6px 8px; border-radius: 4px; margin-top: 4px; font-size: 12px; border-left: 3px solid #ccc; background: #f9f9f9; }
-        .perfect-match { border-left-color: var(--gold); background: #fffdf0; font-weight: bold; border-left-width: 5px; }
-        .error-tag { font-size: 9px; background: #fff1f0; color: #cf1322; padding: 1px 4px; border-radius: 3px; border: 1px solid #ffa39e; margin-top: 2px; display: inline-block; }
-        .batch-panel { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); width: 95%; max-width: 500px; background: white; padding: 15px; border-radius: 16px; border: 2px solid var(--gold); z-index: 2000; display: none; box-shadow: 0 4px 20px rgba(0,0,0,0.3); }
+        .date-label { display: flex; justify-content: space-between; font-weight: 800; border-bottom: 1px solid #eee; padding-bottom: 5px; margin-bottom: 5px; }
+        
+        .person-item { padding: 6px 8px; border-radius: 4px; margin-top: 4px; font-size: 12px; border-left: 3px solid #ccc; background: #f9f9f9; display: flex; flex-direction: column; }
+        .perfect-match { border-left-color: var(--gold); background: #fffdf0; font-weight: bold; border-left-width: 5px; cursor: pointer; }
+        .perfect-match:hover { background: #fff9c4; }
+        .error-tag { font-size: 9px; background: #fff1f0; color: #cf1322; padding: 1px 4px; border-radius: 3px; border: 1px solid #ffa39e; margin-top: 2px; display: inline-block; font-weight: bold; }
+        
+        .batch-panel { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); width: 95%; max-width: 500px; background: rgba(255, 255, 255, 0.98); backdrop-filter: blur(10px); padding: 15px; border-radius: 16px; border: 2px solid var(--gold); box-shadow: 0 -4px 25px rgba(0,0,0,0.2); z-index: 2000; display: none; }
+        .btn-execute { background: var(--danger); color: white; border: none; padding: 12px; border-radius: 8px; font-weight: 900; font-size: 16px; cursor: pointer; width: 100%; margin-top: 10px; }
+        .btn-line { background: #06C755; color: white; border: none; border-radius: 4px; font-size: 10px; padding: 2px 8px; cursor: pointer; margin-left: auto; }
     </style>
 </head>
 <body class="mode-pc">
 
 <div class="config-box">
     <div class="row-group">
-        <strong style="color:var(--primary);">班表 v3.7.7</strong>
+        <strong style="color:var(--primary);">班表小幫手 v3.7.8</strong>
         <div class="switch-container" onclick="toggleMode()">
             <div class="switch-slider"></div>
-            <div class="switch-label" style="z-index:2; flex:1; text-align:center;">💻</div>
-            <div class="switch-label" style="z-index:2; flex:1; text-align:center;">📱</div>
+            <div class="switch-label">💻</div>
+            <div class="switch-label">📱</div>
         </div>
+        <span style="font-size:10px; color:#999; margin-left:auto;">穩定回歸版</span>
     </div>
     <div class="row-group">
-        <input type="file" id="xlsxIn" accept=".xlsx">
-        <input type="text" id="targetId" value="A022994" style="width:80px; text-align:center;">
-        <button onclick="initData()" style="background:var(--safe); color:white; border:none; padding:8px 12px; border-radius:8px; font-weight:bold;">分析</button>
+        <input type="file" id="xlsxIn" accept=".xlsx" style="flex:1;">
+        <input type="text" id="targetId" value="A022994" style="width:90px; text-align:center;">
+        <button onclick="initData()" style="background:var(--safe); color:white; border:none; padding:8px 16px; border-radius:8px; font-weight:bold;">分析</button>
     </div>
+</div>
+
+<div id="summaryArea" class="summary-box">
+    <div id="summaryTitle" style="font-weight:bold; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;"></div>
+    <div id="summaryList"></div>
 </div>
 
 <div id="calendarArea"></div>
 
 <div id="batchPanel" class="batch-panel">
-    <div style="display:flex; justify-content:space-between; margin-bottom:10px;"><b id="selText">已選 0 天</b><button onclick="closePanel()" style="border:none; background:none; color:#999;">關閉</button></div>
-    <select id="shiftSel" onchange="renderUI()" style="width:100%; padding:10px; margin-bottom:10px; border-radius:8px;"></select>
-    <button onclick="alert('檢核完畢')" style="width:100%; background:var(--danger); color:white; border:none; padding:12px; border-radius:8px; font-weight:bold;">執行模擬</button>
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 10px;">
+        <span style="font-weight:bold;">📅 已選擇：<span id="selText">0</span> 天</span>
+        <button onclick="closePanel()" style="background:none; border:none; color:#999; font-size:20px;">✕</button>
+    </div>
+    <div id="selectedTargetDisplay" style="font-weight:bold; color:var(--danger); margin-bottom: 8px; font-size:13px;">對象：尚未選擇</div>
+    <select id="shiftSel" onchange="renderUI()" style="width:100%; padding:10px; border-radius:8px; border:1px solid #ddd;"></select>
+    <button class="btn-execute" onclick="executeBatch()">執行換班</button>
 </div>
 
 <script>
-    const TIME_TABLE = { "E": ["05:15","14:45"], "F": ["06:30","16:30"], "G": ["07:00","16:00"], "J": ["10:00","20:00"], "N": ["14:30","00:30"], "O": ["15:30","01:30"], "D": ["09:00","18:00"] };
+    const TIME_TABLE = { "E159G": ["05:15","14:45"], "F30XA": ["06:30","16:30"], "G009A": ["07:00","16:00"], "J00XA": ["10:00","20:00"], "N008A": ["14:00","22:00"], "N30XA": ["14:30","00:30"], "O30XA": ["15:30","01:30"], "D1": ["09:00","18:00"] };
     const EXCLUDE_COLORS = ["FFFF99", "FF99CC", "99CCFF", "CCFFFF"];
-    let state = { master: {}, personal: {}, dayKeys: [], selectedDays: [], mode: 'pc', expanded: {} };
+    let state = { master: {}, personal: {}, dayKeys: [], selectedDays: [], mode: 'pc', expanded: {}, chosenTarget: null, changeLogs: [] };
 
+    // 核心解析與功能回歸 v3.6.7
     function toM(t) { if(!t) return 0; const [h, m] = t.split(':').map(Number); return h * 60 + m; }
-    function getShift(txt) { 
-        if (!txt) return null;
-        const s = String(txt).trim();
-        return s ? s.charAt(0).toUpperCase() : null;
+    function getShiftTimes(txt) {
+        if(!txt) return null;
+        const key = Object.keys(TIME_TABLE).find(k => txt.toUpperCase().startsWith(k.charAt(0)));
+        return TIME_TABLE[key] || null;
     }
     function isConflicting(preS, curS) {
-        const p = TIME_TABLE[getShift(preS)], c = TIME_TABLE[getShift(curS)];
+        const p = getShiftTimes(preS), c = getShiftTimes(curS);
         if(!p || !c) return false;
         return ((toM(c[0]) + 1440) - toM(p[1])) < 660;
     }
-    function toggleMode() { state.mode = (state.mode === 'pc' ? 'mobile' : 'pc'); document.body.className = `mode-${state.mode}`; renderUI(); }
+
+    function toggleMode() {
+        state.mode = (state.mode === 'pc' ? 'mobile' : 'pc');
+        document.body.className = `mode-${state.mode}`;
+        renderUI();
+    }
 
     async function initData() {
         const f = document.getElementById('xlsxIn').files[0];
@@ -77,97 +104,99 @@
             const workbook = new ExcelJS.Workbook();
             await workbook.xlsx.load(await f.arrayBuffer());
             const worksheet = workbook.getWorksheet(1);
-            state.personal = {}; state.dayKeys = []; state.selectedDays = [];
-            let hIdx = -1;
+            state.personal = {}; state.master = {}; state.dayKeys = []; state.changeLogs = [];
             
+            let hIdx = -1;
             worksheet.eachRow((r, n) => {
                 if(hIdx !== -1) return;
-                r.eachCell(c => {
-                    if(c && c.value && String(c.value).includes("員工編號")) hIdx = n;
-                });
+                r.eachCell(c => { if(String(c.value || "").includes("員工編號")) hIdx = n; });
             });
 
-            if(hIdx === -1) { alert("找不到標題列"); return; }
-
             worksheet.getRow(hIdx).eachCell((c, n) => {
-                const v = c && c.value ? String(c.value).trim() : "";
-                if(v.includes("/")) state.dayKeys.push({label: v, col: n});
+                const v = String(c.value || "");
+                if(v.includes("/")) state.dayKeys.push({label: v.trim(), col: n});
             });
 
             worksheet.eachRow((r, n) => {
                 if(n <= hIdx) return;
-                const idVal = r.getCell(2).value;
-                const nameVal = r.getCell(3).value;
-                const id = idVal ? String(idVal).toUpperCase().trim() : "";
-                const name = nameVal ? String(nameVal).trim() : "";
-                
-                if(!id || id === "NULL" || id.includes("總計")) return;
+                const id = String(r.getCell(2).value || "").toUpperCase().trim();
+                const name = String(r.getCell(3).value || "").trim();
+                if(!id || id.includes("總計") || name === "null") return;
 
                 state.personal[name] = { id, schedule: {} };
                 state.dayKeys.forEach(dk => {
                     const cell = r.getCell(dk.col);
-                    const val = cell ? (cell.text || String(cell.value || "")).trim() : "D1";
+                    const val = (cell.text || String(cell.value || "")).trim() || "D1";
                     let hex = "000000";
-                    try { 
-                        if(cell && cell.fill && cell.fill.fgColor && cell.fill.fgColor.argb) 
-                            hex = String(cell.fill.fgColor.argb).slice(-6).toUpperCase(); 
-                    } catch(e){}
-                    state.personal[name].schedule[dk.label] = { text: val || "D1", hex, isForb: EXCLUDE_COLORS.includes(hex) };
+                    try { if(cell.fill?.fgColor?.argb) hex = cell.fill.fgColor.argb.slice(-6).toUpperCase(); } catch(e){}
+                    state.personal[name].schedule[dk.label] = { text: val, hex, isForb: EXCLUDE_COLORS.includes(hex), note: "" };
+                    
+                    const p = val.charAt(0).toUpperCase();
+                    if(/^[A-Z]$/.test(p)) {
+                        if(!state.master[dk.label]) state.master[dk.label] = {};
+                        if(!state.master[dk.label][p]) state.master[dk.label][p] = [];
+                        state.master[dk.label][p].push({name, text: val});
+                    }
                 });
             });
             renderUI();
-        } catch (e) { alert("錯誤：" + e.message); }
+        } catch (e) { alert("讀取失敗，請確認檔案格式是否正確。"); }
     }
 
     function renderUI() {
         const area = document.getElementById('calendarArea');
         const myId = document.getElementById('targetId').value.toUpperCase();
         const myName = Object.keys(state.personal).find(n => state.personal[n].id === myId);
-        if(!myName) { area.innerHTML = "尚未載入或編號錯誤"; return; }
+        if(!myName) return;
 
-        const labels = state.dayKeys.map(k => k.label);
-        let stats = {};
+        const dayLabels = state.dayKeys.map(k => k.label);
+        let userStats = {};
 
+        // 🚀 核心邏輯：檢核跨日衝突
         if(state.selectedDays.length > 0) {
             Object.keys(state.personal).forEach(n => {
                 if(n === myName) return;
-                stats[n] = { errors: [], canEx: true };
+                userStats[n] = { errors: [], canEx: true };
                 let mock = {};
-                labels.forEach(d => {
+                dayLabels.forEach(d => {
                     mock[d] = state.selectedDays.includes(d) ? state.personal[myName].schedule[d].text : state.personal[n].schedule[d].text;
                 });
 
-                labels.forEach((d, i) => {
+                dayLabels.forEach((d, i) => {
                     if(i === 0) return;
-                    if(isConflicting(mock[labels[i-1]], mock[d])) {
-                        stats[n].errors.push(`${d.split('/')[1]}日不足`);
-                        if(state.selectedDays.includes(d) || state.selectedDays.includes(labels[i-1])) stats[n].canEx = false;
+                    if(isConflicting(mock[dayLabels[i-1]], mock[d])) {
+                        userStats[n].errors.push(`${d.split('/')[1]}日休息不足`);
+                        // 只要衝突點發生在換班日或緊鄰日，就禁止進入推薦名單
+                        if(state.selectedDays.includes(d) || state.selectedDays.includes(dayLabels[i-1])) userStats[n].canEx = false;
                     }
                 });
                 
                 state.selectedDays.forEach(d => {
                     const myS = state.personal[myName].schedule[d], cS = state.personal[n].schedule[d];
-                    const target = document.getElementById('shiftSel')?.value || getShift(myS.text);
-                    if(getShift(cS.text) !== target) { stats[n].errors.push("班別不符"); stats[n].canEx = false; }
-                    if(cS.isForb) { stats[n].errors.push("身分限制"); stats[n].canEx = false; }
+                    const target = (document.getElementById('shiftSel')?.value || myS.text.charAt(0)).toUpperCase();
+                    if(cS.text.charAt(0).toUpperCase() !== target) { userStats[n].errors.push("班別不符"); userStats[n].canEx = false; }
+                    if(cS.isForb) { userStats[n].errors.push("身分限制"); userStats[n].canEx = false; }
                 });
             });
         }
 
-        area.innerHTML = labels.map(d => {
+        area.innerHTML = dayLabels.map(d => {
             const isSel = state.selectedDays.includes(d);
             const myS = state.personal[myName].schedule[d];
-            const targetT = document.getElementById('shiftSel')?.value || getShift(myS.text);
+            const targetT = (document.getElementById('shiftSel')?.value || myS.text.charAt(0)).toUpperCase();
             
             let top = "", others = "", otherCount = 0;
             Object.keys(state.personal).forEach(n => {
                 if(n === myName) return;
                 const cS = state.personal[n].schedule[d];
-                const s = stats[n] || { canEx: false, errors: [] };
+                const s = userStats[n] || { canEx: false, errors: [] };
                 
                 if(isSel && s.canEx) {
-                    top += `<div class="person-item perfect-match"><div style="color:#${cS.hex}">${n} (${cS.text}) ✨</div></div>`;
-                } else if(getShift(cS.text) === targetT) {
+                    const isChosen = state.chosenTarget === n;
+                    top += `<div class="person-item perfect-match ${isChosen?'selected':''}" onclick="event.stopPropagation(); selectTargetPerson('${n}')">
+                        <div style="display:flex; justify-content:space-between;"><span style="color:#${cS.hex}">${n} (${cS.text})</span><b>✨</b></div>
+                    </div>`;
+                } else if(cS.text.charAt(0).toUpperCase() === targetT) {
                     otherCount++;
                     if(state.expanded[d]) {
                         let eTags = isSel ? [...new Set(s.errors)].map(e => `<span class="error-tag">${e}</span>`).join('') : '';
@@ -177,9 +206,9 @@
             });
 
             return `<div class="day-card ${isSel?'selected':''}" onclick="toggleSelect('${d}')">
-                <div class="date-label">${d.split('/')[1]}日 <span>${myS.text}</span></div>
+                <div class="date-label">${d.split('/')[1]}日 <span>${myS.text}${myS.note}</span></div>
                 ${top}
-                <div onclick="event.stopPropagation(); state.expanded['${d}']=!state.expanded['${d}']; renderUI();" style="font-size:10px; color:#999; margin-top:5px; text-align:center;">
+                <div onclick="event.stopPropagation(); state.expanded['${d}']=!state.expanded['${d}']; renderUI();" style="font-size:10px; color:#999; margin-top:5px; text-align:center; cursor:pointer;">
                     ${otherCount > 0 ? (state.expanded[d] ? '收起' : '其他 '+otherCount) : ''}
                 </div>
                 ${others}
@@ -194,14 +223,39 @@
         const bp = document.getElementById('batchPanel');
         if(state.selectedDays.length > 0) {
             bp.style.display = 'block';
-            document.getElementById('selText').innerText = `已選 ${state.selectedDays.length} 天`;
-            let opt = '<option value="">班別(預設)</option>';
-            ['E','F','G','J','N','O'].forEach(s => opt += `<option value="${s}">${s} 班</option>`);
+            document.getElementById('selText').innerText = state.selectedDays.length;
+            let sets = new Set();
+            state.selectedDays.forEach(day => Object.keys(state.master[day]||{}).forEach(p => sets.add(p)));
+            let opt = '<option value="">同班別配對(預設)</option>';
+            Array.from(sets).sort().forEach(s => opt += `<option value="${s}">${s} 班</option>`);
             document.getElementById('shiftSel').innerHTML = opt;
         } else bp.style.display = 'none';
         renderUI();
     }
-    function closePanel() { state.selectedDays = []; document.getElementById('batchPanel').style.display = 'none'; renderUI(); }
+
+    function selectTargetPerson(name) { state.chosenTarget = name; document.getElementById('selectedTargetDisplay').innerText = `對象：${name}`; renderUI(); }
+    function closePanel() { state.selectedDays = []; state.chosenTarget = null; document.getElementById('batchPanel').style.display = 'none'; renderUI(); }
+    
+    function executeBatch() {
+        if(!state.chosenTarget) return alert("請先選擇一位 ✨ 同事");
+        const me = Object.keys(state.personal).find(n => state.personal[n].id === document.getElementById('targetId').value.toUpperCase());
+        state.selectedDays.forEach(d => {
+            const myS = state.personal[me].schedule[d], hS = state.personal[state.chosenTarget].schedule[d];
+            state.changeLogs.push({ date: d, person: state.chosenTarget, from: myS.text, to: hS.text });
+            let oldM = myS.text, oldH = hS.text;
+            myS.text = oldH; hS.text = oldM;
+            myS.note = ` ⇄ ${state.chosenTarget}`; hS.note = ` ⇄ ${me}`;
+        });
+        updateSummary(); closePanel();
+    }
+
+    function updateSummary() {
+        const box = document.getElementById('summaryArea'), list = document.getElementById('summaryList'), title = document.getElementById('summaryTitle');
+        if (state.changeLogs.length === 0) return box.style.display = 'none';
+        box.style.display = 'block';
+        title.innerHTML = `<span>📝 異動摘要</span><button onclick="state.changeLogs=[];updateSummary();renderUI();" style="font-size:10px; color:var(--danger); border:1px solid var(--danger); background:none; border-radius:4px;">清空</button>`;
+        list.innerHTML = state.changeLogs.map(l => `<div style="font-size:12px; margin-bottom:4px;">• ${l.date}：${l.person} (${l.to} ⇄ ${l.from})</div>`).join('');
+    }
 </script>
 </body>
 </html>
