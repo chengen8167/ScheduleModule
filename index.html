@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>班表小幫手 - v3.10.3 Final</title>
+    <title>班表小幫手 - v3.10.4 Stability</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
     <style>
         :root { --primary: #007AFF; --danger: #ff4d4f; --safe: #2e7d32; --bg: #f0f2f5; --selected: #fff9c4; --gold: #d4a017; --white: #ffffff; }
@@ -13,46 +13,45 @@
         .config-box { background: var(--white); padding: 12px; border-bottom: 1px solid #ddd; position: sticky; top: 0; z-index: 1000; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
         .row-group { display: flex; gap: 10px; align-items: center; margin-bottom: 8px; }
         
-        /* 切換鈕 */
-        .switch-container { flex-shrink: 0; display: flex; align-items: center; gap: 4px; background: #eee; padding: 4px; border-radius: 20px; cursor: pointer; position: relative; width: 80px; height: 32px; user-select: none; }
+        /* 電腦/手機切換 */
+        .switch-container { flex-shrink: 0; display: flex; align-items: center; gap: 4px; background: #eee; padding: 4px; border-radius: 20px; cursor: pointer; position: relative; width: 80px; height: 32px; }
         .switch-label { flex: 1; text-align: center; z-index: 2; font-size: 14px; }
         .switch-slider { position: absolute; width: 36px; height: 26px; background: var(--white); border-radius: 18px; top: 3px; left: 3px; transition: 0.3s; }
         .mode-mobile .switch-slider { left: 41px; }
 
-        /* 行事曆 */
         #calendarArea { display: grid; gap: 8px; padding: 8px; }
         .mode-pc { grid-template-columns: repeat(7, 1fr); }
         .mode-mobile { grid-template-columns: 1fr; }
         
-        /* 卡片與名單 */
         .day-card { background: var(--white); border-radius: 10px; padding: 10px; border: 2px solid transparent; min-height: 80px; }
         .day-card.selected { border-color: var(--gold); background: var(--selected); }
         .date-label { display: flex; justify-content: space-between; font-weight: 800; border-bottom: 1px solid #eee; padding-bottom: 5px; }
         
         .group-header { font-size: 10px; color: #999; margin: 8px 0 2px 2px; border-top: 1px dashed #eee; padding-top: 4px; font-weight: bold; }
-        .person-item { padding: 6px 8px; border-radius: 4px; margin-top: 4px; font-size: 12px; border-left: 3px solid #ccc; background: #f9f9f9; display: flex; flex-direction: column; cursor: pointer; }
+        .person-item { padding: 6px 8px; border-radius: 4px; margin-top: 4px; font-size: 12px; border-left: 3px solid #ccc; background: #f9f9f9; cursor: pointer; color: #000 !important; }
         
-        /* 名字顏色強制設定 */
-        .colored-name { font-weight: 900; } 
+        /* 強制修正名字顏色為黑色 */
+        .colored-name { font-weight: 900; color: #000 !important; } 
         
         .perfect-match { border-left-color: var(--gold); background: #fffdf0; border-left-width: 5px; }
         .perfect-match.target-selected { background: #fff3cd; border: 2px solid var(--gold); }
         .error-tag { font-size: 9px; background: #fff1f0; color: #cf1322; padding: 1px 4px; border-radius: 3px; border: 1px solid #ffa39e; margin-right: 2px; display: inline-block; }
 
-        /* 批量面板（隱藏摘要，只放篩選） */
-        .batch-panel { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); width: 95%; max-width: 500px; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); padding: 12px; border-radius: 16px; border: 1px solid #ddd; box-shadow: 0 -4px 20px rgba(0,0,0,0.1); z-index: 2000; display: none; }
+        /* 執行換班視窗 (黃色版面) */
+        .batch-panel { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); width: 95%; max-width: 500px; background: #fffbe6; padding: 15px; border-radius: 16px; border: 2px solid #ffe58f; box-shadow: 0 -4px 20px rgba(0,0,0,0.15); z-index: 2000; display: none; }
+        .btn-execute { background: var(--danger); color: white; border: none; padding: 12px; border-radius: 8px; font-weight: 900; width: 100%; margin-top: 10px; cursor: pointer; }
         
-        /* 獨立摘要版面 */
+        /* 獨立異動摘要區 */
         .standalone-summary { background: #fff; border-radius: 12px; padding: 15px; margin: 15px 8px; border: 2px solid var(--primary); display: none; }
-        .summary-box { background: #f0f7ff; border-radius: 8px; padding: 12px; font-size: 14px; line-height: 1.6; white-space: pre-wrap; margin: 10px 0; border: 1px solid #c0d9ff; }
-        .btn-main-execute { width: 100%; background: var(--danger); color: white; border: none; padding: 15px; border-radius: 10px; font-size: 16px; font-weight: bold; cursor: pointer; box-shadow: 0 4px 10px rgba(255, 77, 79, 0.3); }
+        .summary-box { background: #f8f9fa; border-radius: 8px; padding: 12px; font-size: 13px; white-space: pre-wrap; margin: 10px 0; border: 1px solid #ddd; }
+        .btn-copy { background: var(--primary); color: white; border: none; padding: 8px 15px; border-radius: 6px; font-weight: bold; cursor: pointer; }
     </style>
 </head>
 <body class="mode-pc">
 
 <div class="config-box">
     <div class="row-group">
-        <strong style="color:var(--primary);">班表小幫手 v3.10.3</strong>
+        <strong style="color:var(--primary);">班表小幫手 v3.10.4</strong>
         <div class="switch-container" onclick="toggleMode()">
             <div class="switch-slider"></div>
             <div class="switch-label">💻</div>
@@ -66,21 +65,26 @@
     </div>
 </div>
 
-<div id="calendarArea" class="mode-pc"></div>
-
 <div id="standaloneSummary" class="standalone-summary">
-    <strong style="font-size:16px; color:var(--primary);">📋 換班執行摘要</strong>
-    <div id="summaryContent" class="summary-box">尚未選擇對象...</div>
-    <button class="btn-main-execute" onclick="executeAndCopy()">執行換班並複製訊息</button>
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+        <strong style="color:var(--primary);">📋 異動訊息摘要</strong>
+        <button class="btn-copy" onclick="copySummary()">複製訊息</button>
+    </div>
+    <div id="summaryContent" class="summary-box">尚未選擇換班對象...</div>
 </div>
 
 <div id="batchPanel" class="batch-panel">
     <div style="display:flex; justify-content:space-between; align-items:center;">
-        <span style="font-weight:bold;">📅 快速篩選班別 (<span id="selCount">0</span>天)</span>
-        <button onclick="closePanel()" style="background:none; border:none; font-size:20px; color:#999;">&times;</button>
+        <span style="font-weight:bold;">⚙️ 執行換班設定</span>
+        <button onclick="closePanel()" style="background:none; border:none; font-size:24px; color:#999; cursor:pointer;">&times;</button>
     </div>
-    <select id="shiftSel" onchange="renderUI()" style="width:100%; padding:10px; margin-top:8px; border-radius:8px; border:2px solid var(--primary); font-weight:bold;"></select>
+    <div style="margin-top:10px; font-size:12px; color:#666;">1. 選擇目標班別篩選：</div>
+    <select id="shiftSel" onchange="renderUI()" style="width:100%; padding:10px; margin-top:5px; border-radius:8px; border:2px solid #ffe58f; font-weight:bold;"></select>
+    <div id="selectedTargetDisplay" style="font-weight:bold; color:var(--danger); margin-top: 15px; font-size:14px; text-align:center; padding:10px; background:#fff; border-radius:8px;">請選擇下方 ✨ 完美匹配人選</div>
+    <button class="btn-execute" onclick="executeSwap()">確認執行換班</button>
 </div>
+
+<div id="calendarArea" class="mode-pc"></div>
 
 <script>
     const TIME_TABLE = {
@@ -123,8 +127,7 @@
                 if (rowNum <= hIdx) return;
                 const nameCell = row.getCell(3), name = getCellVal(nameCell), id = getCellVal(row.getCell(2)).toUpperCase();
                 if (!id || id.includes("總計")) return;
-                const argb = nameCell.fill?.fgColor?.argb;
-                if (argb && EXCLUDE_HEX.includes(argb.slice(-6).toUpperCase())) return;
+                if (nameCell.fill?.fgColor?.argb && EXCLUDE_HEX.includes(nameCell.fill.fgColor.argb.slice(-6).toUpperCase())) return;
 
                 state.personal[name] = { id, schedule: {} };
                 state.dayKeys.forEach(dk => {
@@ -142,7 +145,7 @@
     function renderUI() {
         const area = document.getElementById('calendarArea'), labels = state.dayKeys.map(k => k.label);
         const myName = Object.keys(state.personal).find(n => state.personal[n].id === document.getElementById('targetId').value.toUpperCase());
-        if(!myName) return;
+        if(!myName || labels.length === 0) return;
         const filterVal = document.getElementById('shiftSel')?.value || "";
 
         area.innerHTML = labels.map(d => {
@@ -164,9 +167,9 @@
                 });
 
                 const isPerf = isSel && errors.length === 0;
-                // 強制顏色應用
+                // 強制顏色為黑色，解決預設白色問題
                 const item = `<div class="person-item ${isPerf?'perfect-match':''} ${state.chosenTarget===n?'target-selected':''}" onclick="event.stopPropagation(); selectTargetPerson('${n}', ${isPerf})">
-                    <div style="display:flex;justify-content:space-between;"><span class="colored-name" style="color:#${cS.hex} !important;">${n} <small>(${hisBase})</small></span>${isPerf?'✨':''}</div>
+                    <div style="display:flex;justify-content:space-between;"><span class="colored-name">${n} <small>(${hisBase})</small></span>${isPerf?'✨':''}</div>
                     ${isSel && !isPerf && errors.length ? `<div>${[...new Set(errors)].map(e=>`<span class="error-tag">${e}</span>`).join('')}</div>`:''}
                 </div>`;
                 if (isPerf) perfH += item; else { if(state.expanded[d]) conflictH += item; othersCount++; }
@@ -174,9 +177,9 @@
 
             return `<div class="day-card ${isSel?'selected':''}" onclick="toggleSelect('${d}')">
                 <div class="date-label">${d.split('/')[1]}日 <span>${myS.text.split('\n')[0]}</span></div>
-                <div class="group-header">✨ 完美匹配</div>${perfH || '<div style="font-size:9px;color:#ccc;padding:4px;">無符合人選</div>'}
-                <div class="group-header">其他 (${othersCount})</div>${conflictH}
-                ${othersCount > 0 ? `<button onclick="event.stopPropagation(); state.expanded['${d}']=!state.expanded['${d}']; renderUI();" style="width:100%;margin-top:5px;font-size:10px;">${state.expanded[d]?'隱藏':'顯示'}所有</button>` : ''}
+                <div class="group-header">✨ 完美匹配</div>${perfH || '<div style="font-size:9px;color:#ccc;padding:4px;">無全相容</div>'}
+                <div class="group-header">其他候選 (${othersCount})</div>${conflictH}
+                ${othersCount > 0 ? `<button onclick="event.stopPropagation(); state.expanded['${d}']=!state.expanded['${d}']; renderUI();" style="width:100%;margin-top:5px;font-size:10px;cursor:pointer;">${state.expanded[d]?'隱藏':'顯示'}所有</button>` : ''}
             </div>`;
         }).join('');
         updateSummary();
@@ -190,7 +193,6 @@
         const show = state.selectedDays.length > 0;
         document.getElementById('batchPanel').style.display = show ? 'block' : 'none';
         document.getElementById('standaloneSummary').style.display = show ? 'block' : 'none';
-        document.getElementById('selCount').innerText = state.selectedDays.length;
 
         if(show) {
             let sets = new Set();
@@ -205,29 +207,35 @@
     }
 
     function selectTargetPerson(n, isPerf) {
-        if(!isPerf) { alert("此人選在所選日期中有衝突。"); return; }
+        if(!isPerf) { alert("此人選在選定日期中有衝突，無法執行整批換班。"); return; }
         state.chosenTarget = n;
+        document.getElementById('selectedTargetDisplay').innerText = `已選定對象：${n} ✨`;
         renderUI();
     }
 
     function updateSummary() {
         const box = document.getElementById('summaryContent');
-        if(!state.chosenTarget || !state.selectedDays.length) { box.innerText = "請點選日期卡片中的 ✨ 人選..."; return; }
+        if(!state.chosenTarget || !state.selectedDays.length) { box.innerText = "請先點選日期卡片中的 ✨ 人選..."; return; }
         const myName = Object.keys(state.personal).find(n => state.personal[n].id === document.getElementById('targetId').value.toUpperCase());
         
-        let msg = `【換班摘要】\n對象：${state.chosenTarget}\n日期內容：\n`;
+        let msg = `【換班異動摘要】\n換班人：${state.chosenTarget}\n`;
         state.selectedDays.forEach(d => {
             const myS = state.personal[myName].schedule[d].text.split('\n')[0];
             const hisS = state.personal[state.chosenTarget].schedule[d].text.split('\n')[0];
-            msg += `📅 ${d}：${hisS} ↔️ ${myS}\n`;
+            msg += `● ${d}：${hisS} ↔️ ${myS}\n`;
         });
         box.innerText = msg;
     }
 
-    function executeAndCopy() {
+    function executeSwap() {
+        if(!state.chosenTarget) return alert("請先選擇換班對象");
+        alert(`已成功將 ${state.selectedDays.join(', ')} 班別與 ${state.chosenTarget} 互換！\n(此為模擬執行，您可以接著複製下方的異動摘要)`);
+    }
+
+    function copySummary() {
         const txt = document.getElementById('summaryContent').innerText;
-        if(txt.includes("尚未選擇")) return alert("請先選擇對象");
-        navigator.clipboard.writeText(txt).then(() => alert("換班訊息已複製到剪貼簿！"));
+        if(txt.includes("請先點選")) return alert("請先完成對象選取");
+        navigator.clipboard.writeText(txt).then(() => alert("摘要訊息已複製！"));
     }
 
     function toggleMode() { state.mode = (state.mode === 'pc' ? 'mobile' : 'pc'); document.body.className = `mode-${state.mode}`; document.getElementById('calendarArea').className = `mode-${state.mode}`; renderUI(); }
