@@ -3,51 +3,33 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>班表模擬器 - v3.6.1 Stable</title>
+    <title>班表模擬器 - v3.6.2 Stable</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
     <style>
         :root { --primary: #007AFF; --danger: #ff4d4f; --safe: #2e7d32; --bg: #f0f2f5; --selected: #fff9c4; --gold: #d4a017; --white: #ffffff; }
         * { box-sizing: border-box; font-family: -apple-system, sans-serif; }
         body { margin: 0; background: var(--bg); font-size: 14px; padding-bottom: 200px; }
-        
-        /* 頂部控制列 - 修正排版跑位 */
         .config-box { background: var(--white); padding: 12px; border-bottom: 1px solid #ddd; position: sticky; top: 0; z-index: 1000; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
         .row-group { display: flex; gap: 10px; align-items: center; margin-bottom: 8px; flex-wrap: nowrap; overflow: visible; }
-        
         .switch-container { flex-shrink: 0; display: flex; align-items: center; gap: 4px; background: #eee; padding: 4px; border-radius: 20px; cursor: pointer; position: relative; width: 80px; height: 32px; user-select: none; }
         .switch-label { flex: 1; text-align: center; z-index: 2; font-size: 14px; }
         .switch-slider { position: absolute; width: 36px; height: 26px; background: var(--white); border-radius: 18px; top: 3px; left: 3px; transition: 0.3s; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
         .mode-mobile .switch-slider { left: 41px; }
-
-        /* 異動摘要清單 */
         .summary-box { background: #fff; margin: 8px; padding: 12px; border-radius: 10px; border-left: 5px solid var(--primary); box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
-
-        /* 日曆佈局 */
         #calendarArea { display: grid; gap: 8px; padding: 8px; }
         .mode-pc { grid-template-columns: repeat(7, 1fr); }
         .mode-mobile { grid-template-columns: 1fr; }
-
         .day-card { background: var(--white); border-radius: 10px; padding: 10px; border: 2px solid transparent; min-height: 80px; transition: 0.2s; cursor: pointer; }
         .day-card.selected { border-color: var(--gold); background: var(--selected); }
         .date-label { display: flex; justify-content: space-between; font-weight: 800; border-bottom: 1px solid #eee; padding-bottom: 5px; }
         .shift-note { font-size: 9px; color: #ff7875; font-weight: normal; margin-left: 4px; font-style: italic; }
-        
         .person-item { padding: 6px 8px; border-radius: 4px; margin-top: 4px; font-size: 12px; border-left: 3px solid #ccc; background: #f9f9f9; display: flex; flex-direction: column; }
-        /* 確保名字預設為黑色，防止白色字體 */
         .colored-name { font-weight: 900; color: #000000; } 
-        
         .perfect-match { border-left-color: var(--gold); background: #fffdf0; font-weight: bold; border-left-width: 5px; cursor: pointer; }
         .perfect-match.target-selected { background: #fff3cd; border: 2px solid var(--gold); }
-        
         .btn-collapse { width: 100%; border: none; background: #eee; color: #666; font-size: 10px; padding: 8px; border-radius: 4px; cursor: pointer; margin-top: 8px; }
         .error-tag { font-size: 9px; background: #fff1f0; color: #cf1322; padding: 1px 4px; border-radius: 3px; border: 1px solid #ffa39e; margin-right: 2px; display: inline-block; margin-top: 2px; }
-        
-        /* 懸浮控制面板 */
-        .batch-panel { 
-            position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); width: 95%; max-width: 500px; 
-            background: rgba(255, 251, 230, 0.96); backdrop-filter: blur(12px); padding: 15px; border-radius: 16px; border: 2px solid #ffe58f; 
-            box-shadow: 0 -4px 25px rgba(0,0,0,0.18); z-index: 2000; display: none;
-        }
+        .batch-panel { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); width: 95%; max-width: 500px; background: rgba(255, 251, 230, 0.96); backdrop-filter: blur(12px); padding: 15px; border-radius: 16px; border: 2px solid #ffe58f; box-shadow: 0 -4px 25px rgba(0,0,0,0.18); z-index: 2000; display: none; }
         .btn-execute { background: var(--danger); color: white; border: none; padding: 12px; border-radius: 8px; font-weight: 900; font-size: 16px; cursor: pointer; width: 100%; margin-top: 10px; }
     </style>
 </head>
@@ -55,7 +37,7 @@
 
 <div class="config-box">
     <div class="row-group">
-        <strong style="color:var(--primary); white-space: nowrap;">模擬器 v3.6.1</strong>
+        <strong style="color:var(--primary); white-space: nowrap;">模擬器 v3.6.2</strong>
         <div class="switch-container" onclick="toggleMode()">
             <div class="switch-slider"></div>
             <div class="switch-label">💻</div>
@@ -72,7 +54,7 @@
 
 <div id="summaryArea" class="summary-box" style="display:none;">
     <div style="font-weight:bold; margin-bottom:8px; display:flex; justify-content:space-between;">
-        <span>📝 異動摘要 (人名分類)</span>
+        <span>📝 異動摘要 (以我為主體)</span>
         <button onclick="clearChanges()" style="font-size:10px; color:var(--danger); border:1px solid var(--danger); background:none; border-radius:4px;">清空</button>
     </div>
     <div id="summaryList"></div>
@@ -110,14 +92,11 @@
         return String(cell.value).trim();
     }
 
-    // 🚀 嚴格顏色抓取：若不符合條件，強制回傳黑色 (000000)
     function getHexColor(cell) {
         try {
             if (cell && cell.fill && cell.fill.fgColor && cell.fill.fgColor.argb) {
                 let argb = String(cell.fill.fgColor.argb);
-                if (argb.length >= 6 && argb !== "00000000" && argb !== "FFFFFFFF") {
-                    return argb.slice(-6).toUpperCase();
-                }
+                if (argb.length >= 6 && argb !== "00000000" && argb !== "FFFFFFFF") return argb.slice(-6).toUpperCase();
             }
         } catch(e) {}
         return "000000";
@@ -131,12 +110,10 @@
             await workbook.xlsx.load(await f.arrayBuffer());
             const worksheet = workbook.getWorksheet(1);
             state.personal = {}; state.master = {}; state.dayKeys = []; state.changeLogs = []; state.expanded = {};
-
             let headerRowIdx = -1;
             worksheet.eachRow((row, rowNum) => { if (headerRowIdx !== -1) return; row.eachCell(c => { if (getCellVal(c).includes("員工編號")) headerRowIdx = rowNum; }); });
             const headerRow = worksheet.getRow(headerRowIdx);
             headerRow.eachCell((cell, colNum) => { if (getCellVal(cell).includes("/")) state.dayKeys.push({ label: getCellVal(cell), col: colNum }); });
-
             worksheet.eachRow((row, rowNum) => {
                 if (rowNum <= headerRowIdx) return;
                 const name = getCellVal(row.getCell(3)), id = getCellVal(row.getCell(2)).toUpperCase();
@@ -171,10 +148,11 @@
 
     function executeBatch() {
         const me = Object.keys(state.personal).find(n => state.personal[n].id === document.getElementById('targetId').value.toUpperCase());
-        if(!state.chosenTarget) return alert("請點擊 ✨ 選取對象。");
+        if(!state.chosenTarget) return alert("請選取對象。");
         state.selectedDays.forEach(d => {
             const myS = state.personal[me].schedule[d], hS = state.personal[state.chosenTarget].schedule[d];
-            state.changeLogs.push({ date: d, person: state.chosenTarget, from: hS.text, to: myS.text });
+            // 🚀 修正：記錄主體為我的變化
+            state.changeLogs.push({ date: d, person: state.chosenTarget, from: myS.text, to: hS.text });
             let oldMy = myS.text, oldHis = hS.text;
             myS.text = oldHis; hS.text = oldMy;
             myS.note = ` ⇄ ${state.chosenTarget}`; hS.note = ` ⇄ ${me}`;
@@ -226,11 +204,9 @@
     function selectTargetPerson(name) { state.chosenTarget = name; document.getElementById('selectedTargetDisplay').innerText = `對象：${name}`; renderUI(); }
 
     function renderUI() {
-        const area = document.getElementById('calendarArea');
-        const dayLabels = state.dayKeys.map(k => k.label);
+        const area = document.getElementById('calendarArea'), dayLabels = state.dayKeys.map(k => k.label);
         const myName = Object.keys(state.personal).find(n => state.personal[n].id === document.getElementById('targetId').value.toUpperCase());
         if(!myName || dayLabels.length === 0) return;
-        
         let targetPrefix = document.getElementById('shiftSel')?.value || "";
         const selectedIndices = state.selectedDays.map(d => dayLabels.indexOf(d)).sort((a,b)=>a-b);
         const firstIdx = selectedIndices[0], lastIdx = selectedIndices[selectedIndices.length - 1];
@@ -258,27 +234,22 @@
             const isSelectedDay = state.selectedDays.includes(d), isExp = !!state.expanded[d], myS = state.personal[myName].schedule[d];
             const currT = targetPrefix || myS.text.charAt(0).toUpperCase();
             let topHTML = "", otherHTML = "", otherCount = 0;
-
             Object.keys(state.personal).forEach(n => {
                 if(n === myName) return;
                 const cS = state.personal[n].schedule[d], isTop = isSelectedDay && commonIntersection.includes(n), isMatchPrefix = cS.text.charAt(0).toUpperCase() === currT;
                 if (isTop || isMatchPrefix) {
-                    const col = `#${cS.hex}`;
-                    const isChosen = state.chosenTarget === n;
-                    const displayShift = `${cS.text}<span class="shift-note">${cS.note || ""}</span>`;
+                    const col = `#${cS.hex}`, isChosen = state.chosenTarget === n, displayShift = `${cS.text}<span class="shift-note">${cS.note || ""}</span>`;
                     if(isTop) {
                         topHTML += `<div class="person-item perfect-match ${isChosen?'target-selected':''}" onclick="event.stopPropagation(); selectTargetPerson('${n}')">
                             <div style="display:flex;justify-content:space-between;align-items:center;"><span class="colored-name" style="color:${col} !important;">${n} <small style="color:#666">(${displayShift})</small></span><b>✨</b></div>
                         </div>`;
-                    } else { 
-                        otherCount++; if(isExp) {
+                    } else { otherCount++; if(isExp) {
                             let errTags = isSelectedDay ? userStats[n].errors.map(e => `<span class="error-tag">${e}</span>`).join('') : '';
                             otherHTML += `<div class="person-item"><div style="display:flex;justify-content:space-between;align-items:center;"><span class="colored-name" style="color:${col} !important;">${n} <small style="color:#666">(${displayShift})</small></span></div><div>${errTags}</div></div>`;
                         }
                     }
                 }
             });
-
             return `<div class="day-card ${isSelectedDay?'selected':''}" onclick="toggleSelect('${d}')">
                 <div class="date-label">${d.split('/')[1]}日 <span>${myS.text}${myS.note}</span></div>
                 <div style="margin-top:5px;">${topHTML}<button class="btn-collapse" onclick="toggleExpand(event, '${d}')">${isExp ? '收起' : `其他(${otherCount})`}</button><div style="margin-top:4px;">${otherHTML}</div></div>
