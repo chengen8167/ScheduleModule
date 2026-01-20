@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>班表小幫手 - v3.8.9 Theme Color Fix</title>
+    <title>班表小幫手 - v3.9.0 Default Black</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
     <style>
         :root { --primary: #007AFF; --danger: #ff4d4f; --safe: #2e7d32; --bg: #f0f2f5; --selected: #fff9c4; --gold: #d4a017; --white: #ffffff; }
@@ -35,7 +35,7 @@
 
 <div class="config-box">
     <div class="row-group">
-        <strong style="color:var(--primary); white-space: nowrap;">班表小幫手 v3.8.9</strong>
+        <strong style="color:var(--primary); white-space: nowrap;">班表小幫手 v3.9.0</strong>
         <div class="switch-container" onclick="toggleMode()">
             <div class="switch-slider"></div>
             <div class="switch-label">💻</div>
@@ -73,7 +73,7 @@
     };
 
     const EXCLUDE_HEX = ["FFFF99", "FF99CC", "99CCFF", "CCFFFF", "FFCC66"];
-    const EXCLUDE_THEMES = [4, 5, 6, 7]; // 常見的副站黃/督導粉主題索引
+    const EXCLUDE_THEMES = [4, 5, 6, 7]; 
 
     let state = { personal: {}, dayKeys: [], selectedDays: [], mode: 'pc', expanded: {}, chosenTarget: null };
 
@@ -93,18 +93,21 @@
         return ((toM(c[0]) + 1440) - pE) < 660; 
     }
 
-    // 取得顏色資訊物件
+    // 取得顏色資訊物件，並設定預設值
     function getFullColorInfo(cell) {
         try {
             if (cell && cell.fill && cell.fill.fgColor) {
                 const fg = cell.fill.fgColor;
-                return {
-                    hex: fg.argb ? String(fg.argb).slice(-6).toUpperCase() : null,
-                    theme: fg.theme
-                };
+                let hex = null;
+                if (fg.argb) {
+                    const clean = String(fg.argb).slice(-6).toUpperCase();
+                    // 排除掉全黑或全白的 ARGB 標記，回歸預設黑
+                    if (clean !== "000000" && clean !== "FFFFFF") hex = clean;
+                }
+                return { hex: hex, theme: fg.theme };
             }
         } catch(e) {}
-        return { hex: "000000", theme: null };
+        return { hex: null, theme: null };
     }
 
     async function initData() {
@@ -125,8 +128,8 @@
             
             const colorInfo = getFullColorInfo(nameCell);
             
-            // 雙重過濾：如果是副站長黃 (Hex FFFF99 或 Theme 4/5)
-            if (EXCLUDE_HEX.includes(colorInfo.hex) || EXCLUDE_THEMES.includes(colorInfo.theme)) {
+            // 排除特定職務顏色
+            if ((colorInfo.hex && EXCLUDE_HEX.includes(colorInfo.hex)) || (colorInfo.theme !== null && EXCLUDE_THEMES.includes(colorInfo.theme))) {
                 return; 
             }
 
@@ -136,7 +139,7 @@
                 const info = getFullColorInfo(cell);
                 state.personal[name].schedule[dk.label] = { 
                     text: getCellVal(cell) || "D1", 
-                    hex: info.hex || "000000" 
+                    hex: info.hex // 這裡存入 null 或特定 hex
                 };
             });
         });
@@ -174,9 +177,10 @@
                 if(n === myName) return;
                 const cS = state.personal[n].schedule[d], isPerf = isSel && perfects.includes(n);
                 if (isPerf || cS.text.charAt(0).toUpperCase() === (targetPrefix || myS.text.charAt(0).toUpperCase())) {
-                    const col = (cS.hex === "000000") ? "#000000" : `#${cS.hex}`;
+                    // 預設顏色修正：若 hex 為 null，則使用黑色 (#000000)
+                    const displayColor = cS.hex ? `#${cS.hex}` : '#000000';
                     const item = `<div class="person-item ${isPerf?'perfect-match':''} ${state.chosenTarget===n?'target-selected':''}" onclick="event.stopPropagation(); ${isPerf?`selectTargetPerson('${n}')`:''}">
-                        <div style="display:flex;justify-content:space-between;"><span class="colored-name" style="color:${col} !important;">${n} <small style="color:#666">(${cS.text})</small></span>${isPerf?'<b>✨</b>':''}</div>
+                        <div style="display:flex;justify-content:space-between;"><span class="colored-name" style="color:${displayColor} !important;">${n} <small style="color:#666">(${cS.text})</small></span>${isPerf?'<b>✨</b>':''}</div>
                         ${isSel && !isPerf && userStats[n].errors.length ? `<div>${[...new Set(userStats[n].errors)].map(e=>`<span class="error-tag">${e}</span>`).join('')}</div>`:''}
                     </div>`;
                     if(isPerf) topH += item; else { otherC++; if(isExp) otherH += item; }
