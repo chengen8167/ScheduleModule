@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>班表模擬器 - v3.6.2 Stable</title>
+    <title>班表模擬器 - v3.6.3 Stable</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
     <style>
         :root { --primary: #007AFF; --danger: #ff4d4f; --safe: #2e7d32; --bg: #f0f2f5; --selected: #fff9c4; --gold: #d4a017; --white: #ffffff; }
@@ -37,13 +37,13 @@
 
 <div class="config-box">
     <div class="row-group">
-        <strong style="color:var(--primary); white-space: nowrap;">模擬器 v3.6.2</strong>
+        <strong style="color:var(--primary); white-space: nowrap;">模擬器 v3.6.3</strong>
         <div class="switch-container" onclick="toggleMode()">
             <div class="switch-slider"></div>
             <div class="switch-label">💻</div>
             <div class="switch-label">📱</div>
         </div>
-        <span style="font-size:10px; color:#999; margin-left:auto;">Stable Best Practice</span>
+        <span style="font-size:10px; color:#999; margin-left:auto;">Stable Build</span>
     </div>
     <div class="row-group">
         <input type="file" id="xlsxIn" accept=".xlsx" style="flex:1; min-width:120px;">
@@ -54,7 +54,7 @@
 
 <div id="summaryArea" class="summary-box" style="display:none;">
     <div style="font-weight:bold; margin-bottom:8px; display:flex; justify-content:space-between;">
-        <span>📝 異動摘要 (以我為主體)</span>
+        <span id="summaryTitle">📝 異動摘要</span>
         <button onclick="clearChanges()" style="font-size:10px; color:var(--danger); border:1px solid var(--danger); background:none; border-radius:4px;">清空</button>
     </div>
     <div id="summaryList"></div>
@@ -151,7 +151,6 @@
         if(!state.chosenTarget) return alert("請選取對象。");
         state.selectedDays.forEach(d => {
             const myS = state.personal[me].schedule[d], hS = state.personal[state.chosenTarget].schedule[d];
-            // 🚀 修正：記錄主體為我的變化
             state.changeLogs.push({ date: d, person: state.chosenTarget, from: myS.text, to: hS.text });
             let oldMy = myS.text, oldHis = hS.text;
             myS.text = oldHis; hS.text = oldMy;
@@ -162,8 +161,14 @@
 
     function updateSummary() {
         const box = document.getElementById('summaryArea'), list = document.getElementById('summaryList');
+        const me = Object.keys(state.personal).find(n => state.personal[n].id === document.getElementById('targetId').value.toUpperCase());
+        
         if (state.changeLogs.length === 0) { box.style.display = 'none'; return; }
+        
         box.style.display = 'block';
+        // 🚀 修正：將標題改為您的名字
+        document.getElementById('summaryTitle').innerText = `📝 異動摘要 (${me || '我'})`;
+
         const groups = state.changeLogs.reduce((acc, log) => {
             if (!acc[log.person]) acc[log.person] = [];
             acc[log.person].push(log); return acc;
