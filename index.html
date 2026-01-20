@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>班表模擬器 - v3.0 - 20260120</title>
+    <title>班表模擬器 - v3.1 - 20260120</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
     <style>
         :root { --primary: #007AFF; --danger: #ff4d4f; --safe: #2e7d32; --bg: #f0f2f5; --selected: #fff9c4; --gold: #d4a017; }
@@ -32,7 +32,7 @@
 <div class="config-box">
     <div class="row-group">
         <strong style="color:var(--primary)">班表模擬器</strong>
-        <span class="version-tag">v3.0 - 20260120</span>
+        <span class="version-tag">v3.1 - 20260120</span>
     </div>
     <div class="row-group">
         <input type="file" id="xlsxIn" accept=".xlsx" style="flex:1;">
@@ -55,6 +55,15 @@
 
 <script>
     const TIME_TABLE = { "E159G": ["05:15","14:45"], "F30XA": ["06:30","16:30"], "G009A": ["07:00","16:00"], "J00XA": ["10:00","20:00"], "N008A": ["14:00","22:00"], "N30XA": ["14:30","00:30"], "O30XA": ["15:30","01:30"], "D1": ["09:00","18:00"] };
+    
+    // 定義排除色號清單 (Hex 格式)
+    const EXCLUDE_COLORS = [
+        "FFFF99", // 副站黃 (255,255,153)
+        "FF99CC", // 督導粉 (255,153,204)
+        "99CCFF", // TAO深藍 (153,204,255)
+        "CCFFFF"  // TAO淺藍 (204,255,255)
+    ];
+
     let state = { master: {}, personal: {}, dayKeys: [], selectedDays: [], mode: 'pc', expanded: {}, targetPrefix: "" };
 
     function changeView(m) { state.mode = m; renderUI(); }
@@ -98,7 +107,7 @@
                 });
             });
 
-            if (headerRowIdx === -1) throw new Error("找不到『員工編號』標題列");
+            if (headerRowIdx === -1) throw new Error("找不到標題列");
 
             const headerRow = worksheet.getRow(headerRowIdx);
             headerRow.eachCell((cell, colNum) => {
@@ -118,10 +127,8 @@
                     const cell = row.getCell(dk.col);
                     let val = getCellVal(cell) || "D1";
                     
-                    // 修正顏色邏輯：若無明確 argb 填色，則 hex = null
                     let hex = null;
                     if (cell.fill && cell.fill.type === 'pattern' && cell.fill.fgColor && cell.fill.fgColor.argb) {
-                        // 確保不是預設的透明或白色背景
                         const rawHex = cell.fill.fgColor.argb.toUpperCase();
                         if (rawHex !== "FFFFFFFF" && rawHex !== "00000000") {
                             hex = rawHex.slice(-6);
@@ -130,8 +137,9 @@
 
                     state.personal[name].schedule[dk.label] = { 
                         text: val, 
-                        hex: hex, // null 代表沒顏色，後續渲染會給黑色
-                        isForb: ['FFFF00','FFFFE0','FFC0CB','FF00FF','0000FF','1E88E5'].includes(hex)
+                        hex: hex,
+                        // 判斷是否在排除名單中
+                        isForb: hex ? EXCLUDE_COLORS.includes(hex) : false
                     };
 
                     const p = val.charAt(0).toUpperCase();
@@ -144,7 +152,6 @@
             document.getElementById('btnAnalyze').innerText = "分析完成";
             renderUI();
         } catch (err) {
-            console.error(err);
             alert("讀取失敗：" + err.message);
             document.getElementById('btnAnalyze').innerText = "分析失敗";
         }
@@ -163,16 +170,15 @@
             } else { state.selectedDays = [d]; }
         } else { state.selectedDays.push(d); }
         
-        const bp = document.getElementById('batchPanel');
         if(state.selectedDays.length > 0) {
-            bp.style.display = 'block';
+            document.getElementById('batchPanel').style.display = 'block';
             document.getElementById('selText').innerText = state.selectedDays.length;
             let sets = new Set();
             state.selectedDays.forEach(day => Object.keys(state.master[day]||{}).forEach(p => sets.add(p)));
             let opt = '<option value="">(初始) 顯示同班別名單</option>';
             Array.from(sets).sort().forEach(p => opt += `<option value="${p}">${p} 班</option>`);
             document.getElementById('shiftSel').innerHTML = opt;
-        } else { bp.style.display = 'none'; }
+        } else { document.getElementById('batchPanel').style.display = 'none'; }
         renderUI();
     }
 
@@ -212,9 +218,11 @@
                     let safe = checkSafe(state.personal[n].schedule[dayLabels[dIdx-1]]?.text, myS.text, state.personal[n].schedule[dayLabels[dIdx+1]]?.text);
                     if (dIdx === firstIdx) safe = safe && checkSafe(state.personal[n].schedule[dayLabels[dIdx-1]]?.text, myS.text, null);
                     if (dIdx === lastIdx) safe = safe && checkSafe(null, myS.text, state.personal[n].schedule[dayLabels[dIdx+1]]?.text);
+                    
+                    // 符合資格：班別對、沒被排除、休足
                     if (isMatchPrefix && !cS.isForb && safe) { userStats[n].totalMatch++; } 
                     else {
-                        let reason = !isMatchPrefix ? "不符" : (!safe ? "休足" : "排除");
+                        let reason = !isMatchPrefix ? "不符" : (cS.isForb ? "身分排除" : "休足");
                         userStats[n].errors.push(`${d.split('/')[1]}日${reason}`);
                     }
                 });
@@ -236,7 +244,6 @@
                 const isMatchPrefix = cS.text.charAt(0).toUpperCase() === currT;
 
                 if (isTop || isMatchPrefix) {
-                    // 若 hex 為 null 則強制給黑色，否則使用抓到的 hex
                     const cellColor = cS.hex ? `#${cS.hex}` : '#000000';
                     const personContent = `<div style="display:flex; justify-content:space-between; width:100%; align-items:center;">
                         <span class="colored-name" style="color: ${cellColor};">${n} <small style="color:#666">(${cS.text})</small></span>
@@ -245,7 +252,10 @@
                     if(isTop) topHTML += `<div class="person-item perfect-match">${personContent}</div>`;
                     else {
                         otherCount++;
-                        if(isExp) otherHTML += `<div class="person-item">${personContent}</div>`;
+                        if(isExp) {
+                            let errs = isSelectedDay ? userStats[n].errors.map(e => `<span class="error-tag">${e}</span>`).join('') : '';
+                            otherHTML += `<div class="person-item">${personContent}<div>${errs}</div></div>`;
+                        }
                     }
                 }
             });
