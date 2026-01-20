@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>班表小幫手 - v3.9.1 Support @ Suffix</title>
+    <title>班表小幫手 - v3.9.2 Reference Attachment</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
     <style>
         :root { --primary: #007AFF; --danger: #ff4d4f; --safe: #2e7d32; --bg: #f0f2f5; --selected: #fff9c4; --gold: #d4a017; --white: #ffffff; }
@@ -35,7 +35,7 @@
 
 <div class="config-box">
     <div class="row-group">
-        <strong style="color:var(--primary); white-space: nowrap;">班表小幫手 v3.9.1</strong>
+        <strong style="color:var(--primary); white-space: nowrap;">班表小幫手 v3.9.2</strong>
         <div class="switch-container" onclick="toggleMode()">
             <div class="switch-slider"></div>
             <div class="switch-label">💻</div>
@@ -69,7 +69,8 @@
         "J00Xa": ["10:00", "20:00"], "J308a": ["10:30", "18:30"], "K008a": ["11:00", "19:00"], "L008a": ["12:00", "20:00"],
         "N008a": ["14:00", "22:00"], "N009a": ["14:00", "23:00"], "N009g": ["14:00", "23:30"], "N308a": ["14:30", "22:30"], "N309a": ["14:30", "23:30"], "N30Xa": ["14:30", "00:30"],
         "O008a": ["15:00", "23:00"], "O308a": ["15:30", "23:30"], "O309a": ["15:30", "00:30"], "O309g": ["15:30", "00:45"], "O30Xa": ["15:30", "01:30"],
-        "TRN": ["08:30", "17:30"], "D1": ["09:00", "18:00"], "D2": ["09:00", "18:00"], "D2A": ["09:00", "18:00"], "D3": ["09:00", "18:00"], "D3X": ["09:00", "18:00"]
+        "TRN": ["08:30", "17:30"], "D1": ["09:00", "18:00"], "D2": ["09:00", "18:00"], "D2A": ["09:00", "18:00"], "D3": ["09:00", "18:00"], "D3X": ["09:00", "18:00"],
+        "T6": ["09:00", "18:00"] // 針對附件中出現的 T6 班別預設時間
     };
 
     const EXCLUDE_HEX = ["FFFF99", "FF99CC", "99CCFF", "CCFFFF", "FFCC66"];
@@ -79,14 +80,17 @@
 
     function toM(t) { if(!t) return 0; const [h, m] = t.split(':').map(Number); return h * 60 + m; }
     
+    // 統一的班別字串清洗工具
+    function cleanShift(txt) {
+        if(!txt) return "";
+        // 1. 移除換行符 2. 先切 / 3. 再切 @ 4. 移除頭尾空白
+        return txt.replace(/[\r\n]+/g, "").split('/')[0].split('@')[0].trim();
+    }
+
     function isConflicting(preTxt, curTxt) {
         if (!preTxt || !curTxt) return false;
-        const getT = (txt) => {
-            // 同時判斷 / 與 @ 後綴並忽略其後資訊
-            const clean = txt.trim().split('/')[0].split('@')[0];
-            return TIME_TABLE[clean] || null;
-        };
-        const p = getT(preTxt), c = getT(curTxt);
+        const pClean = cleanShift(preTxt), cClean = cleanShift(curTxt);
+        const p = TIME_TABLE[pClean] || null, c = TIME_TABLE[cClean] || null;
         if(!p || !c) return false;
         let pE = toM(p[1]); if (pE < toM(p[0])) pE += 1440;
         return ((toM(c[0]) + 1440) - pE) < 660; 
@@ -152,9 +156,12 @@
                 const idx = labels.indexOf(d);
                 const myST = state.personal[myName].schedule[d].text;
                 const hisST = state.personal[n].schedule[d].text;
-                // 分類與判定邏輯同樣加入 @ 處理
-                const target = targetPrefix || myST.split('@')[0].charAt(0).toUpperCase();
-                const isMatch = hisST.split('@')[0].charAt(0).toUpperCase() === target;
+                
+                const myBase = cleanShift(myST);
+                const hisBase = cleanShift(hisST);
+
+                const target = targetPrefix || myBase.charAt(0).toUpperCase();
+                const isMatch = hisBase.charAt(0).toUpperCase() === target;
                 const restErr = isConflicting(state.personal[n].schedule[labels[idx-1]]?.text, myST) || isConflicting(myST, state.personal[n].schedule[labels[idx+1]]?.text);
                 if (isMatch && !restErr) userStats[n].totalMatch++;
                 else if (isMatch) userStats[n].errors.push(`${d.split('/')[1]}日休息不足`);
@@ -169,19 +176,20 @@
             Object.keys(state.personal).forEach(n => {
                 if(n === myName) return;
                 const cS = state.personal[n].schedule[d], isPerf = isSel && perfects.includes(n);
-                const myBaseShift = myS.text.split('@')[0];
-                const hisBaseShift = cS.text.split('@')[0];
-                if (isPerf || hisBaseShift.charAt(0).toUpperCase() === (targetPrefix || myBaseShift.charAt(0).toUpperCase())) {
+                const myBase = cleanShift(myS.text);
+                const hisBase = cleanShift(cS.text);
+
+                if (isPerf || hisBase.charAt(0).toUpperCase() === (targetPrefix || myBase.charAt(0).toUpperCase())) {
                     const displayColor = cS.hex ? `#${cS.hex}` : '#000000';
                     const item = `<div class="person-item ${isPerf?'perfect-match':''} ${state.chosenTarget===n?'target-selected':''}" onclick="event.stopPropagation(); ${isPerf?`selectTargetPerson('${n}')`:''}">
-                        <div style="display:flex;justify-content:space-between;"><span class="colored-name" style="color:${displayColor} !important;">${n} <small style="color:#666">(${cS.text})</small></span>${isPerf?'<b>✨</b>':''}</div>
+                        <div style="display:flex;justify-content:space-between;"><span class="colored-name" style="color:${displayColor} !important;">${n} <small style="color:#666">(${cS.text.replace(/[\r\n]+/g, " ")})</small></span>${isPerf?'<b>✨</b>':''}</div>
                         ${isSel && !isPerf && userStats[n].errors.length ? `<div>${[...new Set(userStats[n].errors)].map(e=>`<span class="error-tag">${e}</span>`).join('')}</div>`:''}
                     </div>`;
                     if(isPerf) topH += item; else { otherC++; if(isExp) otherH += item; }
                 }
             });
             return `<div class="day-card ${isSel?'selected':''}" onclick="toggleSelect('${d}')">
-                <div class="date-label">${d.split('/')[1]}日 <span>${myS.text}</span></div>
+                <div class="date-label">${d.split('/')[1]}日 <span>${myS.text.replace(/[\r\n]+/g, " ")}</span></div>
                 <div style="margin-top:5px;">${topH}<button class="btn-collapse" onclick="toggleExpand(event, '${d}')">${isExp ? '收起' : `其他(${otherC})`}</button>${otherH}</div>
             </div>`;
         }).join('');
@@ -212,9 +220,8 @@
             let sets = new Set();
             state.selectedDays.forEach(day => Object.values(state.personal).forEach(p => { 
                 const txt = p.schedule[day]?.text;
-                // 下拉選單生成也需處理 @
                 if(txt) {
-                    const clean = txt.split('@')[0];
+                    const clean = cleanShift(txt);
                     if(/^[A-Z]/.test(clean)) sets.add(clean.charAt(0).toUpperCase());
                 }
             }));
