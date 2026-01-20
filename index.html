@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>班表小幫手 - v3.9.7 Filter Priority Fix</title>
+    <title>班表小幫手 - v3.9.8 Logic Fix</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
     <style>
         :root { --primary: #007AFF; --danger: #ff4d4f; --safe: #2e7d32; --bg: #f0f2f5; --selected: #fff9c4; --gold: #d4a017; --white: #ffffff; }
@@ -35,7 +35,7 @@
 
 <div class="config-box">
     <div class="row-group">
-        <strong style="color:var(--primary); white-space: nowrap;">班表小幫手 v3.9.7</strong>
+        <strong style="color:var(--primary); white-space: nowrap;">班表小幫手 v3.9.8</strong>
         <div class="switch-container" onclick="toggleMode()">
             <div class="switch-slider"></div>
             <div class="switch-label">💻</div>
@@ -144,21 +144,32 @@
         const myName = Object.keys(state.personal).find(n => state.personal[n].id === targetIdVal);
         if(!myName || labels.length === 0) return;
         
-        // 獲取目前下拉選單選取的班別首字母 (例如 "E")
         const filterVal = document.getElementById('shiftSel')?.value || "";
 
         let userStats = {};
         Object.keys(state.personal).forEach(n => {
             if(n === myName) return;
             userStats[n] = { errors: [], totalMatch: 0 };
+            
             state.selectedDays.forEach(d => {
                 const idx = labels.indexOf(d);
-                const myST = state.personal[myName].schedule[d].text;
-                const prevST = state.personal[n].schedule[labels[idx-1]]?.text;
-                const nextST = state.personal[n].schedule[labels[idx+1]]?.text;
-                const restErr = isConflicting(prevST, myST) || isConflicting(myST, nextST);
+                const myTargetST = state.personal[myName].schedule[d].text;
+
+                // 核心邏輯修正：判斷前一天與後一天的連續性
+                const prevDayLabel = labels[idx-1];
+                let prevST = state.selectedDays.includes(prevDayLabel) 
+                            ? state.personal[myName].schedule[prevDayLabel].text 
+                            : state.personal[n].schedule[prevDayLabel]?.text;
+
+                const nextDayLabel = labels[idx+1];
+                let nextST = state.selectedDays.includes(nextDayLabel) 
+                            ? state.personal[myName].schedule[nextDayLabel].text 
+                            : state.personal[n].schedule[nextDayLabel]?.text;
+                
+                const restErr = isConflicting(prevST, myTargetST) || isConflicting(myTargetST, nextST);
+                
                 if (!restErr) userStats[n].totalMatch++;
-                else userStats[n].errors.push(`${d.split('/')[1]}日換班後休息不足`);
+                else userStats[n].errors.push(`${d.split('/')[1]}日休息不足`);
             });
         });
 
@@ -166,26 +177,19 @@
             const isSel = state.selectedDays.includes(d), isExp = !!state.expanded[d], myS = state.personal[myName].schedule[d];
             let topH = "", otherH = "", otherC = 0;
             
-            // 決定預設要過濾的班別（若沒選選單，則預設過濾跟自己同班別的人）
-            const defaultFilter = cleanShift(myS.text).charAt(0).toUpperCase();
-            const activeFilter = filterVal || defaultFilter;
+            const activeFilter = filterVal || cleanShift(myS.text).charAt(0).toUpperCase();
 
             Object.keys(state.personal).forEach(n => {
                 if(n === myName) return;
                 const cS = state.personal[n].schedule[d];
                 const hisBase = cleanShift(cS.text);
 
-                // 第一關：必須是在 TIME_TABLE 定義內的上班（排除 D, LEV）
                 if (!TIME_TABLE[hisBase]) return;
+                if (hisBase.charAt(0).toUpperCase() !== activeFilter) return;
 
-                // 第二關：嚴格篩選下拉選單符合的人 (例如只選 E 班)
-                const isTargetMatch = hisBase.charAt(0).toUpperCase() === activeFilter;
-                if (!isTargetMatch) return;
-
-                // 第三關：在符合 E 班的人中，標記 Perfect Match (帶星星)
                 const isPerf = isSel && userStats[n].totalMatch === state.selectedDays.length;
-
                 const displayColor = cS.hex ? `#${cS.hex}` : '#000000';
+                
                 const item = `<div class="person-item ${isPerf?'perfect-match':''} ${state.chosenTarget===n?'target-selected':''}" onclick="event.stopPropagation(); ${isPerf?`selectTargetPerson('${n}')`:''}">
                     <div style="display:flex;justify-content:space-between;"><span class="colored-name" style="color:${displayColor} !important;">${n} <small style="color:#666">(${cS.text.replace(/[\r\n]+/g, " ")})</small></span>${isPerf?'<b>✨</b>':''}</div>
                     ${isSel && !isPerf && userStats[n].errors.length ? `<div>${[...new Set(userStats[n].errors)].map(e=>`<span class="error-tag">${e}</span>`).join('')}</div>`:''}
@@ -221,8 +225,7 @@
                 state.selectedDays.push(d);
             }
         }
-        const panel = document.getElementById('batchPanel');
-        panel.style.display = state.selectedDays.length ? 'block' : 'none';
+        document.getElementById('batchPanel').style.display = state.selectedDays.length ? 'block' : 'none';
         document.getElementById('selText').innerText = state.selectedDays.length;
         
         if(state.selectedDays.length > 0) {
